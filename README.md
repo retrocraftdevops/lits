@@ -28,11 +28,21 @@ abattoirs, auctions and veterinary offices connect to it as **clients**.
 | `examples/` | sample request / response payloads |
 | `scripts/validate.py` | the contract self-test (the CI quality gate) |
 | `conformance/` | how an integration proves conformance |
-| `docs/` | spec governance, registry operations, the integration guide |
+| `docs/` | spec governance and the integration guide |
 | `profiles/<cc>/` | per-country **open** profile: official acronym, ID numbering, zones, legal basis |
 
 The runnable **reference implementation, portals and operations** are held privately by the
 operator — they are *not* in this repository. Only the contract and conformance suite are open.
+
+## Lineage
+
+LITS does not invent livestock traceability — it packages well-established national practice as
+an open, vendor-neutral contract for African registries. It builds on the proven models —
+Australia's **NLIS**, New Zealand's **NAIT**, the EU's **TRACES**, and the regional systems
+**NamLITS** (Namibia), **BAITS** (Botswana) and **LITS&nbsp;SA** (South Africa) — and on the
+international groundwork of **ICAR** / **ISO&nbsp;11784-5** and **FAO** / **WOAH** / **AU-IBAR**
+guidance. What is original here is the specific open API contract and the open-standard,
+State-sovereign governance model — not the concept, and not the generic name "LITS".
 
 ## Licensing & governance
 

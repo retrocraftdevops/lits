@@ -15,10 +15,9 @@ You may obtain a copy of the License in the file LICENSE or at:
 
 Documentation is licensed under CC BY 4.0 (see LICENSE-docs).
 
-The runnable reference implementation (reference-impl/, excluding tests/) and the
-portal UI (web/) are source-available and are NOT open-licensed; they are
-proprietary to the LITS steward / operator and licensed only under the applicable
-partnership agreement. See reference-impl/LICENSE and LICENSING.md.
+The runnable reference implementation and portal UI are source-available and are NOT
+open-licensed; they are proprietary to the LITS steward / operator and held in a
+separate private repository. See LICENSING.md.
 
-"ZLITS" and the ZLITS conformance mark are trademarks. They are not licensed by the
-Apache License. See TRADEMARK.md.
+The national instance names ("ZLITS", "MLITS", ...) and the conformance mark are
+trademarks. They are not licensed by the Apache License. See TRADEMARK.md.

@@ -2,7 +2,7 @@
 
 This is the repository-root governance statement for the LITS national livestock registry
 **contract**. The rationale behind these rules — and the decisions they encode — is in
-[docs/zlits-spec-governance.md](./docs/zlits-spec-governance.md); the day-to-day change
+[docs/spec-governance.md](./docs/spec-governance.md); the day-to-day change
 mechanics are in [CONTRIBUTING.md](./CONTRIBUTING.md). This file is the canonical, citable
 policy.
 
@@ -63,9 +63,9 @@ Open to build on; impossible to impersonate:
 - **Anyone** may read and implement the contract and run the conformance suite.
 - **Only an accredited, conformance-tested integrator** with a live, per-operator API key issued
   through the Admin Portal may operate against the production registry, call itself
-  **"ZLITS-conformant"**, or display the conformance mark (see [TRADEMARK.md](./TRADEMARK.md)).
+  **"LITS-conformant"**, or display the conformance mark (see [TRADEMARK.md](./TRADEMARK.md)).
 - Accreditation + per-key attribution + the immutable audit trail are how the registry stays
-  **open yet accountable** (see [docs/registry-operations.md](./docs/registry-operations.md) §7).
+  **open yet accountable**.
 
 ## 6. Data protection
 
@@ -78,3 +78,9 @@ The production registry holds personal data under the Cyber & Data Protection Ac
 Changes to this file follow the same PR + review flow as the contract and, once a steering
 committee exists (§2), require its approval. Until designation, the steward may amend it but may
 not weaken the handover commitment (§2) or the patent covenant (§3) — those are one-way ratchets.
+
+## 8. Contact
+
+Questions, **security reports** and accreditation enquiries go to the steward at
+[hello@lits.africa](mailto:hello@lits.africa) (until official designation; thereafter the State /
+delegated operator).
