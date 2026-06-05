@@ -1,6 +1,6 @@
-# ZLITS Client Integration Guide
+# LITS Client Integration Guide
 
-How an accredited platform integrates with the ZLITS registry as a **client** — auth, the
+How an accredited platform integrates with the LITS registry as a **client** — auth, the
 write/read operations, the reliability contract, zone sync, certificates, and the
 dry-run → live lifecycle. **FuroTrack is the worked reference** throughout (it is the first
 client, not the owner); every other vendor integrates the same way with its own API key.
@@ -13,7 +13,7 @@ client, not the owner); every other vendor integrates the same way with its own 
 
 ## 0. You are a client (the two-plane model from your seat)
 
-ZLITS runs on a **control plane** (the sovereign registry + Admin Portal, on `*.gov.zw`) and
+LITS runs on a **control plane** (the sovereign registry + Admin Portal, on `*.gov.zw`) and
 a **client plane** (your capture app). The full model is in
 [registry-operations.md §0](./registry-operations.md); the only thing a client must internalise:
 
@@ -24,7 +24,7 @@ a **client plane** (your capture app). The full model is in
 - **You never call the control-plane API** ([../openapi-admin.yaml](../openapi-admin.yaml)) —
   that is zone authoring, accreditation, key issuance and audit, for DVS / operator staff only.
 
-A clean way to think about it: integrating with ZLITS is **one more registry adapter**, exactly
+A clean way to think about it: integrating with LITS is **one more registry adapter**, exactly
 like talking to NamLITS (Namibia), SLITS (Eswatini) or BAITS (Botswana). No new architecture.
 
 ---
@@ -32,9 +32,9 @@ like talking to NamLITS (Namibia), SLITS (Eswatini) or BAITS (Botswana). No new 
 ## 1. The operations & the adapter mapping
 
 Four operations cover the integration. The right column is the **FuroTrack reference adapter**
-(`ZLITSAdapter`, `zlits` in its registry list); your platform supplies the equivalent.
+(`LITSAdapter`, ZLITS (Zimbabwe)0 in its registry list); your platform supplies the equivalent.
 
-| ZLITS endpoint | Purpose | FuroTrack adapter method |
+| LITS endpoint | Purpose | FuroTrack adapter method |
 | --- | --- | --- |
 | `POST /v1/animals` | Register / identify an animal → `national_id` | `register_animal` |
 | `POST /v1/movements` | Lodge a movement permit / consignment → `permit_reference` | `record_movement` |
@@ -42,12 +42,12 @@ Four operations cover the integration. The right column is the **FuroTrack refer
 | `GET /v1/zones?since_version=N` | Pull the veterinary / FMD zone delta | `fmd_zone_sync` consumer |
 | `POST /v1/certificates` | **Request** a registry certificate (request-only, §6) | `request_certificate` |
 
-### Field mapping (reference: FuroTrack `ZLITSAdapter`)
+### Field mapping (reference: FuroTrack `LITSAdapter`)
 
 The adapter is a thin field translation from FuroTrack's internal model to the contract — no
 business logic. Representative mappings:
 
-| Operation | FuroTrack field → ZLITS field |
+| Operation | FuroTrack field → LITS field |
 | --- | --- |
 | `register_animal` | `tag → visual_tag`, `eid_tag → eid`, `farm_registration_number → holding_id`, `owner_name → keeper_name`, plus `species/breed/sex/date_of_birth/district/fmd_zone_code` passthrough |
 | `record_movement` | `permit_number`, `subject_count → head_count`, per-animal `national_id/visual_tag/species/fmd_zone_code`, `origin_site_name → origin`, `approved_by → vet_endorsement`, `destination(_zone_code/_type)`, `purpose`, transporter/vehicle/dates |
@@ -109,7 +109,7 @@ clients — a client never creates a national zone ([registry-operations.md §1]
 - The response shape matches FuroTrack's existing `fmd_zone_sync` consumer, so it ingests the
   feed unchanged. See [`zone-delta.response.json`](../examples/zone-delta.response.json).
 
-> Migration note (FuroTrack): today FuroTrack can author zones locally. Under ZLITS-governed
+> Migration note (FuroTrack): today FuroTrack can author zones locally. Under LITS-governed
 > Zimbabwe that authority moves to the registry and FuroTrack becomes **read-only** on national
 > zones — otherwise two competing zone truths emerge.
 
@@ -156,10 +156,10 @@ change. The FuroTrack reference uses these env vars (other vendors use their own
 
 | Variable | Role |
 | --- | --- |
-| `ZLITS_API_URL` | Registry base URL (sandbox, then production). |
-| `ZLITS_API_KEY` | The per-operator bearer key issued on accreditation. |
-| `ZLITS_REGISTRATION_PATH` / `ZLITS_MOVEMENT_PATH` / `ZLITS_VACCINATION_PATH` / `ZLITS_CERTIFICATE_PATH` | Verified endpoint paths — the adapter **does not guess routes**. |
-| `GOVT_SYNC_DRY_RUN` or `ZLITS_DRY_RUN` | Force dry-run regardless of config. |
+| `LITS_API_URL` | Registry base URL (sandbox, then production). |
+| `LITS_API_KEY` | The per-operator bearer key issued on accreditation. |
+| `LITS_REGISTRATION_PATH` / `LITS_MOVEMENT_PATH` / `LITS_VACCINATION_PATH` / `LITS_CERTIFICATE_PATH` | Verified endpoint paths — the adapter **does not guess routes**. |
+| `GOVT_SYNC_DRY_RUN` or `LITS_DRY_RUN` | Force dry-run regardless of config. |
 
 States:
 
@@ -179,7 +179,7 @@ real submission.
 
 Open spec does **not** mean anyone may pose as official ([zlits-spec-governance.md §3](./zlits-spec-governance.md)).
 
-- Run the **conformance suite** (`reference-impl/tests/test_conformance.py`) against your
+- Run the **conformance suite** (the conformance suite) against your
   integration — it ties behaviour to the contract so the two cannot drift.
 - Get **accredited** by the operator, who issues your per-operator key (control plane).
 - Only an accredited, conformance-tested integrator with a live key may call itself

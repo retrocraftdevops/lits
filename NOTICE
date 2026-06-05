@@ -1,13 +1,13 @@
-ZLITS — Zimbabwe Livestock Identification & Traceability System
+LITS — Livestock Identification & Traceability System
 ================================================================
 
-Copyright [2026] The ZLITS steward (see GOVERNANCE.md).
+Copyright [2026] The LITS steward (see GOVERNANCE.md).
 
-Stewardship of, and copyright in, the ZLITS contract are committed to transfer to
+Stewardship of, and copyright in, the LITS contract are committed to transfer to
 the State / a neutral national body on official designation of the registry and its
 operator. See GOVERNANCE.md, section "Stewardship".
 
-This product includes the ZLITS national livestock registry API contract, examples,
+This product includes the LITS national livestock registry API contract, examples,
 validator and conformance suite, licensed under the Apache License, Version 2.0.
 You may obtain a copy of the License in the file LICENSE or at:
 
@@ -17,7 +17,7 @@ Documentation is licensed under CC BY 4.0 (see LICENSE-docs).
 
 The runnable reference implementation (reference-impl/, excluding tests/) and the
 portal UI (web/) are source-available and are NOT open-licensed; they are
-proprietary to the ZLITS steward / operator and licensed only under the applicable
+proprietary to the LITS steward / operator and licensed only under the applicable
 partnership agreement. See reference-impl/LICENSE and LICENSING.md.
 
 "ZLITS" and the ZLITS conformance mark are trademarks. They are not licensed by the

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the ZLITS API contract are recorded here. The format follows
+All notable changes to the LITS API contract are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The **contract** is versioned
 in the URL path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
@@ -84,8 +84,8 @@ in the URL path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change
   (`users:write`) issues `POST /admin/invitations`; the invitee accepts via
   `POST /auth/accept-invite` (sets their own password) and is created in the inviting tenant.
   Seeded users carry a hashed dev password so credential login is testable; dev-login gates on
-  `ZLITS_DEV_AUTOLOGIN` (off ⇒ production credential-only). **OIDC/SSO** is the integration
-  point: config (`ZLITS_OIDC_*`) + `/auth/oidc/login|config`, guarded to 501 until an issuer is
+  `LITS_DEV_AUTOLOGIN` (off ⇒ production credential-only). **OIDC/SSO** is the integration
+  point: config (`LITS_OIDC_*`) + `/auth/oidc/login|config`, guarded to 501 until an issuer is
   set (per-tenant issuer config lives in the control plane; a live IdP completes it). Verified
   (49 tests + live HTTP): login/MFA/invite flows, auditor cannot invite (403), dev-login
   disable, OIDC guard.
@@ -103,10 +103,10 @@ in the URL path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change
   and a platform audit log — gated by **platform roles** (`platform_super_admin`/`support`/
   `billing`) that are a hard trust boundary: a tenant `dvs_admin` holds `*` but is still
   rejected from the platform plane. Platform operators are global/tenant-independent.
-  Verified live: provisioning a tenant yields full data isolation (seeded `zlits` herd vs an
+  Verified live: provisioning a tenant yields full data isolation (seeded ZLITS (Zimbabwe)0 herd vs an
   empty `demo`, same endpoint); tenant roles 403 on `/platform`. 45 tests pass.
 - **Phase 0 — Postgres persistence foundation (multi-tenant from the start).** Opt-in Postgres
-  backend behind `ZLITS_DATABASE_URL`; the in-memory store stays the default (demo + tests run
+  backend behind `LITS_DATABASE_URL`; the in-memory store stays the default (demo + tests run
   with no database, `psycopg` imported lazily). Ships: `db/migrations/0001_init.sql` (platform
   `tenants` table + tenant-scoped registry tables, each with `tenant_id` and **row-level
   security** keyed on the per-request GUC `app.tenant_id`, fail-closed); a migration runner
@@ -164,7 +164,7 @@ in the URL path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change
   timeline. **Dark mode** (toggle + no-flash inline script) with charts and the Leaflet map
   re-toned for dark surfaces.
 - **`web/` — modern operations console (Next.js 16 + React 19 + Tailwind v4 + shadcn/ui +
-  Recharts + lucide).** A real SPA on top of the existing ZLITS JSON API (no backend rewrite):
+  Recharts + lucide).** A real SPA on top of the existing LITS JSON API (no backend rewrite):
   a BFF proxy (`/api/zlits/*`) forwards cookies so session auth + dev-login work same-origin.
   Governmental theme (soft-neutral bg, deep-navy grouped sidebar, emerald primary, severity-
   encoded colours). **National Command** dashboard follows the operations brief — *urgent
@@ -277,7 +277,7 @@ in the URL path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change
 
 ### Added
 
-- Initial ZLITS API v1 contract (`openapi.yaml`, OpenAPI 3.1):
+- Initial LITS API v1 contract (`openapi.yaml`, OpenAPI 3.1):
   - `POST /v1/animals`, `GET /v1/animals/{national_id}`
   - `POST /v1/movements`, `POST /v1/vaccinations`
   - `GET /v1/zones` (delta sync), `GET /v1/verify/{token}` (public), `GET /healthz`

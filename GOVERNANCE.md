@@ -1,6 +1,6 @@
-# ZLITS Governance
+# LITS Governance
 
-This is the repository-root governance statement for the ZLITS national livestock registry
+This is the repository-root governance statement for the LITS national livestock registry
 **contract**. The rationale behind these rules — and the decisions they encode — is in
 [docs/zlits-spec-governance.md](./docs/zlits-spec-governance.md); the day-to-day change
 mechanics are in [CONTRIBUTING.md](./CONTRIBUTING.md). This file is the canonical, citable
@@ -23,18 +23,18 @@ the per-path open-vs-held map.
 | **On designation** | A **joint steering committee**: DVS (chair) + the delegated operator + an integrator seat | Approves sovereign-impacting changes; ratifies the official acronym, the `national_id` numbering scheme and production hosts |
 | **Mature** | DVS / a neutral national body holds the standard; operator and vendors contribute | Long-run neutrality and export-market credibility |
 
-> **Handover commitment.** Stewardship of, and copyright in, the ZLITS *contract* (the
+> **Handover commitment.** Stewardship of, and copyright in, the LITS *contract* (the
 > Apache-2.0 and CC-BY artifacts) **transfer to the State / a neutral national body on official
 > designation** of the registry and its operator. This is committed now, in writing, because the
 > standard must visibly not be "the vendor's." It costs the steward nothing it needs to keep:
 > stewardship of the *standard* is separate from operation of the *instance* (held under the
-> concession — see [LICENSING.md](./LICENSING.md) and `reference-impl/LICENSE`).
+> concession — see [LICENSING.md](./LICENSING.md)).
 
 ## 3. Patent non-assertion covenant
 
 In addition to the patent grant in the Apache License 2.0 covering contributed code, the steward
 and contributors covenant **not to assert any patent essential to implementing the published
-ZLITS contract** against any conformant implementation, for as long as that implementation
+LITS contract** against any conformant implementation, for as long as that implementation
 remains conformant. This lets a competitor invest in integrating without fear of a patent
 ambush, and is a deliberate, low-cost trust signal to government and to rival vendors.
 
@@ -47,7 +47,7 @@ Apache-2.0 relationship — is in [PATENTS](./PATENTS). This section is a summar
   `/v1`; breaking changes ship only under a new `/vN`. Full rules: [CONTRIBUTING.md](./CONTRIBUTING.md).
 - **Quality gate on every change.** `scripts/validate.py` + `@redocly/cli lint`, enforced in CI
   ([.github/workflows/validate.yml](./.github/workflows/validate.yml)), plus the conformance gate
-  (`reference-impl/tests/test_conformance.py`) that ties the live service to the contract so they
+  (the conformance suite) that ties the live service to the contract so they
   cannot drift. A change that fails any gate does not merge.
 - **RFC for sovereign-impacting changes.** Anything touching identity numbering, certificate
   semantics, zone authority, the two-plane split, or personal-data fields requires an RFC decided

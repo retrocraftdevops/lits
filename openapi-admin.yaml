@@ -1,13 +1,13 @@
-# SPDX-FileCopyrightText: 2026 The ZLITS steward
+# SPDX-FileCopyrightText: 2026 The LITS steward
 # SPDX-License-Identifier: Apache-2.0
 
 openapi: 3.1.0
 info:
-  title: ZLITS Admin / Control-Plane API
+  title: LITS Admin / Control-Plane API
   version: 1.3.0-draft
   summary: Sovereign control-plane API — zones, integrator accreditation & keys, audit.
   description: |
-    The control-plane API used **only** by the ZLITS Admin Portal (DVS / operator staff).
+    The control-plane API used **only** by the LITS Admin Portal (DVS / operator staff).
     It is deliberately SEPARATE from the client contract (`openapi.yaml`): different
     audience, different security scheme. Integrator clients (FuroTrack and others) never
     call these endpoints. This split encodes the two-plane model — see
@@ -15,13 +15,13 @@ info:
 
     STATUS: DRAFT CONTRACT. Hosts are operator/State placeholders, never a vendor domain.
   contact:
-    name: ZLITS registry operator (TBD — DVS / delegated operator)
+    name: LITS registry operator (TBD — DVS / delegated operator)
   license:
     name: To be set by the operator/State
 servers:
-  - url: https://api.zlits.gov.zw/v1
+  - url: https://api.example.gov/v1
     description: Production (operator-owned; placeholder host)
-  - url: https://sandbox.zlits.gov.zw/v1
+  - url: https://sandbox.example.gov/v1
     description: Sandbox
 
 security:

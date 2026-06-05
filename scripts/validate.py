@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: 2026 The ZLITS steward
+# SPDX-FileCopyrightText: 2026 The LITS steward
 # SPDX-License-Identifier: Apache-2.0
 
-"""Validate the ZLITS OpenAPI contract and example payloads.
+"""Validate the LITS OpenAPI contract and example payloads.
 
 This is the repository's quality gate: it runs in CI on every push/PR and is
 runnable locally with `python3 scripts/validate.py`. It is dependency-light — only

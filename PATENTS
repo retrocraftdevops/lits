@@ -1,14 +1,14 @@
-ZLITS Patent Non-Assertion Covenant
+LITS Patent Non-Assertion Covenant
 ===================================
 
 Canonical text of the covenant summarised in GOVERNANCE.md §3. Its purpose is to let any
-party — including a competitor — invest in implementing the ZLITS contract without fear of a
+party — including a competitor — invest in implementing the LITS contract without fear of a
 patent ambush, and to signal to the State and to other vendors that the standard is genuinely
 open.
 
 1. Definitions
 --------------
-"Contract" means the published ZLITS API contract in this repository: openapi.yaml,
+"Contract" means the published LITS API contract in this repository: openapi.yaml,
 openapi-admin.yaml, and the normative schemas and examples they reference.
 
 "Conformant Implementation" means software, to the extent it implements the Contract and passes
@@ -54,5 +54,5 @@ including the handover of the Contract to the State or a neutral national body o
 (GOVERNANCE.md §2). Consistent with GOVERNANCE.md §7, it is a one-way ratchet: a future steward
 may broaden it but may not revoke or narrow it.
 
-Copyright [2026] The ZLITS steward. Licensed under CC BY 4.0 (see LICENSE-docs); the covenant
+Copyright [2026] The LITS steward. Licensed under CC BY 4.0 (see LICENSE-docs); the covenant
 itself is binding independently of the licence on this text.

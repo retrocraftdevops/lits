@@ -1,10 +1,10 @@
-# ZLITS Spec Governance — Open Standard, Held Implementation
+# LITS Spec Governance — Open Standard, Held Implementation
 
-How the ZLITS contract is **licensed, governed and published** so it is a credible national
+How the LITS contract is **licensed, governed and published** so it is a credible national
 utility — open enough that any vendor can integrate and government cannot be locked in, yet
 structured so the operator's investment and the State's sovereignty are both protected.
 
-> Status: DRAFT policy. Pairs with [registry-operations.md](./registry-operations.md) (the
+> Status: DRAFT policy. Pairs with registry operations (in the private platform repo) (the
 > two-plane model) and [../CONTRIBUTING.md](../CONTRIBUTING.md) (the change policy this formalises).
 
 ---
@@ -13,7 +13,7 @@ structured so the operator's investment and the State's sovereignty are both pro
 
 **Open the standard; hold the implementation; the State owns the data and the mandate.**
 
-Vendor-neutrality is not a slogan — it is the property that makes ZLITS adoptable as a *national
+Vendor-neutrality is not a slogan — it is the property that makes LITS adoptable as a *national
 utility* rather than one company's lock-in. The contract is therefore published under an open
 licence so competitors integrate on equal terms. That openness costs the operator nothing it needs
 to keep, because **the right to *operate* the national registry comes from the State's mandate, not
@@ -27,8 +27,8 @@ from possession of the spec.**
 |---|---|---|
 | **API contract** — `openapi.yaml`, `openapi-admin.yaml`, `examples/` | **Open** | Apache-2.0 (incl. patent grant) |
 | **Prose docs** — `README`, `docs/*.md` | **Open** | CC-BY-4.0 |
-| **Conformance suite** — `reference-impl/tests/test_conformance.py` | **Open** (so anyone can self-test) | Apache-2.0 |
-| **Reference implementation** — `reference-impl/` runnable service + Admin Portal | **Source-available, held** | Proprietary; licensed to the operator under the partnership agreement — *not* an open licence |
+| **Conformance suite** — the conformance suite | **Open** (so anyone can self-test) | Apache-2.0 |
+| **Reference implementation** — runnable service + Admin Portal (held privately) | **Source-available, held** | Proprietary; licensed to the operator under the partnership agreement — *not* an open licence |
 | **Hardened / operational platform** (scale, security, deployment, signing) | **Held** | Proprietary (NewCo / operator) |
 | **The "ZLITS" name & marks** | **Held** | Trademark — *not* covered by the open licence (see §3) |
 | **The national herd data** | **State's** | Not licensable by any vendor; POTRAZ controller/processor |
@@ -99,7 +99,7 @@ The mechanics already exist in the repo; governance simply names who decides:
   under a new `/vN`. (See [CONTRIBUTING.md](../CONTRIBUTING.md).)
 - **Quality gate on every change** — `scripts/validate.py` + `@redocly/cli lint`, enforced by
   [`.github/workflows/validate.yml`](../.github/workflows/validate.yml), plus the conformance gate
-  (`reference-impl/tests/test_conformance.py`) that ties the live service to the contract so they
+  (the conformance suite) that ties the live service to the contract so they
   cannot drift.
 - **RFC for sovereign-impacting changes** — anything touching identity numbering, certificate
   semantics, zone authority or data fields goes through the steering committee, not a single vendor.

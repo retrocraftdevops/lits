@@ -1,6 +1,6 @@
-# Contributing to ZLITS
+# Contributing to LITS
 
-ZLITS is the **national registry contract** — the single agreement between the registry
+LITS is the **national registry contract** — the single agreement between the registry
 and every client (FuroTrack and others). Changes here ripple to every integrator, so the
 bar is deliberately high.
 
@@ -71,7 +71,7 @@ real). By signing off you agree to the terms in [DCO](./DCO).
 New source files should carry an SPDX header matching their licence, for example:
 
 ```
-# SPDX-FileCopyrightText: 2026 The ZLITS steward
+# SPDX-FileCopyrightText: 2026 The LITS steward
 # SPDX-License-Identifier: Apache-2.0
 ```
 
