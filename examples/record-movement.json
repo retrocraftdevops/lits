@@ -1,0 +1,18 @@
+{
+  "permit_number": "MVP-2026-00477",
+  "animals": [
+    { "national_id": "ZW-CAT-0000123", "visual_tag": "ZW-0012345", "species": "cattle", "fmd_zone_code": "ZW-FMD-RED-SE" },
+    { "national_id": "ZW-CAT-0000124", "visual_tag": "ZW-0012346", "species": "cattle", "fmd_zone_code": "ZW-FMD-RED-SE" }
+  ],
+  "head_count": 2,
+  "origin": "HLD-MAT-00891",
+  "origin_zone_code": "ZW-FMD-RED-SE",
+  "destination": "Bulawayo Municipal Abattoir",
+  "destination_type": "abattoir",
+  "purpose": "slaughter",
+  "transporter": "Sibanda Haulage",
+  "vehicle_registration": "AEK-4421",
+  "departure_date": "2026-06-04",
+  "vet_endorsement": "Dr N. Ncube (DVS Gwanda)",
+  "regulatory_reference": "AHA-19:01"
+}

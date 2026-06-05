@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+dist/
+bundled.openapi.json
+*.bundled.yaml
+__pycache__/
+*.pyc
+.vercel/

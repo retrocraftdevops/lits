@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 The ZLITS steward
+# SPDX-License-Identifier: CC-BY-4.0
+cff-version: 1.2.0
+message: "If you reference or implement the ZLITS contract, please cite it as below."
+title: "ZLITS — Zimbabwe Livestock Identification & Traceability System: open API contract"
+abstract: >-
+  An open, vendor-neutral national livestock registry API contract for animal identity,
+  movement and health events. The contract, examples and conformance suite are licensed
+  Apache-2.0; the "ZLITS" name and conformance mark are protected, and the national herd
+  data and the mandate belong to the State.
+type: software
+authors:
+  - name: "The ZLITS steward"
+license: Apache-2.0
+repository-code: "https://github.com/retrocraftdevops/zlits"
+url: "https://lits.africa"
+version: "1.6.0-draft"
+keywords:
+  - livestock traceability
+  - livestock identification
+  - national registry
+  - animal health
+  - movement permits
+  - OpenAPI
+  - Zimbabwe
+  - Africa

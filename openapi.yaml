@@ -1,0 +1,1069 @@
+# SPDX-FileCopyrightText: 2026 The ZLITS steward
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.1.0
+info:
+  title: ZLITS — Zimbabwe Livestock Identification & Traceability System
+  version: 1.6.0-draft
+  summary: Vendor-neutral national livestock registry API (the source of truth).
+  description: |
+    ZLITS is the national registry of record for livestock **identity**, **movement**
+    and **animal-health** events in Zimbabwe. It is a standalone, vendor-neutral
+    service: any farm-management platform (FuroTrack and others), abattoir, auction
+    house or veterinary district office integrates as a **client**. The registry — not
+    any one vendor — is the source of truth.
+
+    Authority to operate ZLITS is conferred by the Department of Veterinary Services
+    (DVS) under the **Animal Health Act [Chapter 19:01]**; personal data is held under
+    the **Cyber & Data Protection Act [Chapter 12:07]** (regulator: POTRAZ).
+
+    STATUS: DRAFT CONTRACT. No production endpoint exists yet. This document is the
+    contract that both the registry implementation and every client integration build
+    against. Hosts below are placeholders on an operator/State domain — never a vendor
+    domain.
+
+    Scope: cattle first (aligned with the National Cattle Identification Program),
+    designed to extend to small stock.
+  contact:
+    name: ZLITS registry operator (TBD — DVS / delegated operator)
+  license:
+    name: To be set by the operator/State
+servers:
+  - url: https://api.zlits.gov.zw/v1
+    description: Production (operator-owned; placeholder host)
+  - url: https://sandbox.zlits.gov.zw/v1
+    description: Sandbox for client integration testing
+
+security:
+  - operatorApiKey: []
+
+tags:
+  - name: animals
+    description: Identity registration and lookup.
+  - name: keepers
+    description: Keeper identity resolution (find-or-claim on a natural key — one keeper per person).
+  - name: keeper-self
+    description: |
+      Keeper self-service ("My ZLITS") — a livestock owner managing their OWN herd, movements
+      and certificate requests directly, with no vendor. Owner-scoped, `keeperSession` auth.
+  - name: movements
+    description: Movement permits / consignment records.
+  - name: vaccinations
+    description: Vaccination and mandatory disease events.
+  - name: zones
+    description: Veterinary / FMD zone reference data (delta sync).
+  - name: certificates
+    description: Issue, fetch and revoke registry-signed certificates (movement permit, health, export).
+  - name: verification
+    description: Public, unauthenticated certificate/animal verification.
+  - name: system
+    description: Discovery and liveness.
+
+paths:
+  /animals:
+    post:
+      tags: [animals]
+      operationId: registerAnimal
+      summary: Register / identify an animal
+      description: |
+        Registers an animal in the national herd and returns its official
+        `national_id`. If the submitted animal already exists (by `national_id` or by
+        the `Idempotency-Key`), the existing record is returned unchanged.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnimalRegistration' }
+            examples:
+              cattle:
+                $ref: '#/components/examples/AnimalRegistrationExample'
+      responses:
+        '201':
+          description: Animal registered (or already present — idempotent).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnimalAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /animals/{national_id}:
+    get:
+      tags: [animals]
+      operationId: getAnimal
+      summary: Look up an animal by national ID
+      parameters:
+        - name: national_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Animal record.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnimalRecord' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /animals/by-tag:
+    get:
+      tags: [animals]
+      operationId: lookupByTag
+      summary: Resolve a physical tag (eid or visual tag) to its animal — incl. a retired tag
+      description: A retired/replaced tag still resolves to the live animal (tag_retired = true).
+      parameters:
+        - { name: tag, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Animal (plus matched_tag and tag_retired)., content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /authorized-keepers:
+    get:
+      tags: [keepers]
+      operationId: authorizedKeepers
+      summary: Keepers who currently authorize the calling integrator (the consented herd scope)
+      responses:
+        '200': { description: Keeper ids., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, keeper_ids: { type: array, items: { type: string } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /keepers/resolve:
+    post:
+      tags: [keepers]
+      operationId: resolveKeeper
+      summary: Find-or-claim a keeper by natural key
+      description: |
+        Resolves a person to the single registry keeper record, keyed on a sovereign natural
+        key (`national_id_no` and/or verified `msisdn`). Returns the existing keeper when the
+        person is already known — so an integrator never creates a second keeper for someone the
+        keeper app or another vendor already onboarded — otherwise creates and returns a new one.
+        `outcome` is `matched` or `created`. This is entity-level identity resolution, distinct
+        from the request-level `Idempotency-Key` (which only makes a single retried call safe).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KeeperResolve' }
+      responses:
+        '200':
+          description: The resolved keeper (matched or created).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Keeper' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /movements:
+    post:
+      tags: [movements]
+      operationId: recordMovement
+      summary: Lodge a movement permit / consignment
+      description: |
+        Records a livestock movement (one truck departure may carry many animals).
+        Returns a `permit_reference`. The registry enforces veterinary-zone rules and
+        may reject a movement that crosses a blocked boundary.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Movement' }
+            examples:
+              consignment:
+                $ref: '#/components/examples/MovementExample'
+      responses:
+        '201':
+          description: Movement recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovementAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Movement blocked by a zone restriction.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /vaccinations:
+    post:
+      tags: [vaccinations]
+      operationId: recordVaccination
+      summary: Record a vaccination / mandatory disease event
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Vaccination' }
+            examples:
+              fmd:
+                $ref: '#/components/examples/VaccinationExample'
+      responses:
+        '201':
+          description: Vaccination recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VaccinationAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /certificates:
+    post:
+      tags: [certificates]
+      operationId: requestCertificate
+      summary: Request a certificate (delegated approval)
+      description: |
+        Integrators may only REQUEST a certificate. The registry records it with status
+        `requested` (unsigned). Only the competent authority (Official Vet / DVS) issues and
+        signs it (control plane) and revokes it — integrators never mint national certificates.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CertificateRequest' }
+            examples:
+              movementPermit:
+                $ref: '#/components/examples/CertificateRequestExample'
+      responses:
+        '201':
+          description: Certificate request recorded (status 'requested').
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Certificate' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /certificates/{id}:
+    get:
+      tags: [certificates]
+      operationId: getCertificate
+      summary: Fetch a certificate (signed payload + PDF link)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Certificate.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Certificate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /zones:
+    get:
+      tags: [zones]
+      operationId: getZones
+      summary: Veterinary / FMD zone reference data (delta sync)
+      description: |
+        Returns zones whose `zone_version` is greater than `since_version`, plus the
+        current `server_version`. Clients persist `server_version` and pass it back on
+        the next call for an incremental delta. This shape matches FuroTrack's existing
+        `fmd_zone_sync` consumer so it can ingest the feed unchanged.
+      parameters:
+        - name: since_version
+          in: query
+          required: false
+          schema: { type: integer, format: int64, default: 0 }
+        - name: country_code
+          in: query
+          required: false
+          schema: { type: string, default: ZW }
+      responses:
+        '200':
+          description: Zone delta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ZoneDelta' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /verify/{token}:
+    get:
+      tags: [verification]
+      operationId: verify
+      summary: Public verification of an animal/certificate
+      description: |
+        Unauthenticated lookup behind a QR/print token. Returns a sanitised,
+        non-sensitive status so a buyer, abattoir or inspector can verify provenance
+        offline of any vendor.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Verification result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---- keeper self-service ("My ZLITS") — keeperSession auth, owner-scoped --------------
+  /keeper/claim:
+    post:
+      tags: [keeper-self]
+      operationId: keeperClaim
+      summary: Onboard a keeper (find-or-claim by natural key) and start a session
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                msisdn: { type: string }
+                national_id_no: { type: string }
+      responses:
+        '201':
+          description: The keeper (created or matched); a `zlits_keeper` session cookie is set.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /keeper/login:
+    post:
+      tags: [keeper-self]
+      operationId: keeperLogin
+      summary: Sign in to an existing keeper record (match only; never creates)
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keeper_id: { type: string }
+                msisdn: { type: string }
+                national_id_no: { type: string }
+      responses:
+        '200': { description: Signed in., content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/logout:
+    post:
+      tags: [keeper-self]
+      operationId: keeperLogout
+      summary: End the keeper session
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Signed out. }
+  /keeper/otp/start:
+    post:
+      tags: [keeper-self]
+      operationId: keeperOtpStart
+      summary: Sign-in step 1 — send a one-time code to a mobile number
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [msisdn], properties: { msisdn: { type: string } } } } }
+      responses:
+        '200': { description: Code sent (dev_code in dev only; exists flags returning vs new)., content: { application/json: { schema: { type: object, properties: { sent: { type: boolean }, exists: { type: boolean }, dev_code: { type: [string, 'null'] } } } } } }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /keeper/otp/verify:
+    post:
+      tags: [keeper-self]
+      operationId: keeperOtpVerify
+      summary: Sign-in step 2 — confirm the code (signs in or registers; mobile proven → verified)
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [msisdn, code], properties: { msisdn: { type: string }, code: { type: string }, name: { type: string } } } } }
+      responses:
+        '200': { description: Signed in; a zlits_keeper session cookie is set., content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /keeper/me:
+    get:
+      tags: [keeper-self]
+      operationId: keeperMe
+      summary: The signed-in keeper
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Keeper., content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/verify/start:
+    post:
+      tags: [keeper-self]
+      operationId: keeperVerifyStart
+      summary: Send a one-time code to the keeper's mobile (claimed → verified)
+      security: [{ keeperSession: [] }]
+      responses:
+        '200':
+          description: Code sent. (`dev_code` is returned in dev only; production SMSes it.)
+          content: { application/json: { schema: { type: object, properties: { sent: { type: boolean }, dev_code: { type: [string, 'null'] } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/verify/confirm:
+    post:
+      tags: [keeper-self]
+      operationId: keeperVerifyConfirm
+      summary: Confirm the one-time code (sets verification = verified)
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } }
+      responses:
+        '200': { description: Verified., content: { application/json: { schema: { type: object, properties: { verification: { type: string } } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/summary:
+    get:
+      tags: [keeper-self]
+      operationId: keeperSummary
+      summary: At-a-glance overview (counts + attention items) for the keeper home
+      security: [{ keeperSession: [] }]
+      responses:
+        '200':
+          description: Overview.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  holdings: { type: integer }
+                  herd: { type: integer }
+                  movements: { type: object }
+                  certificates: { type: object }
+                  attention:
+                    type: array
+                    items: { type: object, properties: { kind: { type: string }, label: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/herd:
+    get:
+      tags: [keeper-self]
+      operationId: keeperHerd
+      summary: The keeper's own animals (owner-scoped)
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Herd., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, animals: { type: array, items: { $ref: '#/components/schemas/AnimalRecord' } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/holdings:
+    get:
+      tags: [keeper-self]
+      operationId: keeperHoldings
+      summary: The keeper's own holdings
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Holdings., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, holdings: { type: array, items: { type: object } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [keeper-self]
+      operationId: keeperRegisterHolding
+      summary: Register one of the keeper's own premises
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [name, district, province], properties: { name: { type: string }, district: { type: string }, province: { type: string } } } } }
+      responses:
+        '201': { description: Holding registered., content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/animals:
+    post:
+      tags: [keeper-self]
+      operationId: keeperCaptureAnimal
+      summary: Capture (register) an animal into the keeper's own herd
+      description: The server forces ownership to the signed-in keeper and assigns the national_id (find-or-create on tag).
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sex]
+              properties:
+                species: { type: string }
+                sex: { type: string, enum: [male, female] }
+                visual_tag: { type: string }
+                eid: { type: string }
+                breed: { type: string }
+                date_of_birth: { type: string, format: date }
+                holding_id: { type: string }
+      responses:
+        '201': { description: Registered (or matched by tag)., content: { application/json: { schema: { $ref: '#/components/schemas/AnimalAck' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /keeper/animals/{national_id}:
+    patch:
+      tags: [keeper-self]
+      operationId: keeperUpdateAnimal
+      summary: Correct one of the keeper's own animals (owner-scoped)
+      security: [{ keeperSession: [] }]
+      parameters: [{ name: national_id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                breed: { type: string }
+                sex: { type: string }
+                date_of_birth: { type: string, format: date }
+                holding_id: { type: string }
+                status: { type: string, enum: [active, dead, slaughtered, lost] }
+      responses:
+        '200': { description: Updated animal., content: { application/json: { schema: { $ref: '#/components/schemas/AnimalRecord' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /keeper/animals/{national_id}/retag:
+    post:
+      tags: [keeper-self]
+      operationId: keeperRequestRetag
+      summary: Request a tag replacement (§9.5 — the national_id never changes; authority confirms)
+      security: [{ keeperSession: [] }]
+      parameters: [{ name: national_id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { new_visual_tag: { type: string }, new_eid: { type: string }, reason: { type: string } } } } }
+      responses:
+        '201': { description: Retag requested (status `pending`)., content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /keeper/retags:
+    get:
+      tags: [keeper-self]
+      operationId: keeperRetags
+      summary: The keeper's tag-replacement requests and their status
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Retag requests., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, retags: { type: array, items: { type: object } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/movements:
+    get:
+      tags: [keeper-self]
+      operationId: keeperMovements
+      summary: The keeper's own movement permits
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Permits., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, movements: { type: array, items: { type: object } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [keeper-self]
+      operationId: keeperLodgeMovement
+      summary: Lodge a movement permit for the keeper's own animals (zone-enforced; vet approves)
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [animal_ids, origin, destination]
+              properties:
+                animal_ids: { type: array, items: { type: string } }
+                origin: { type: string }
+                destination: { type: string }
+                purpose: { type: string }
+                origin_zone_code: { type: string }
+                destination_zone_code: { type: string }
+                destination_type: { type: string }
+      responses:
+        '201': { description: Lodged (or blocked by a zone rule)., content: { application/json: { schema: { $ref: '#/components/schemas/MovementAck' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/certificates:
+    get:
+      tags: [keeper-self]
+      operationId: keeperCerts
+      summary: Certificates for the keeper's own animals
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Certificates., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, certificates: { type: array, items: { $ref: '#/components/schemas/Certificate' } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [keeper-self]
+      operationId: keeperRequestCert
+      summary: Request a certificate for one of the keeper's own animals (request-only)
+      description: The authority issues & signs (Part I/II); the keeper never mints a certificate.
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject_id]
+              properties:
+                subject_id: { type: string }
+                kind: { type: string, enum: [health, movement_permit, export] }
+                destination: { type: string }
+                valid_until: { type: string, format: date }
+      responses:
+        '201': { description: Certificate requested (status `requested`)., content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /keeper/integrators:
+    get:
+      tags: [keeper-self]
+      operationId: keeperIntegrators
+      summary: Accredited vendors the keeper can authorize
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Vendors., content: { application/json: { schema: { type: object, properties: { integrators: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/authorizations:
+    get:
+      tags: [keeper-self]
+      operationId: keeperAuthorizations
+      summary: The keeper's vendor-access grants (consent / portability)
+      security: [{ keeperSession: [] }]
+      responses:
+        '200': { description: Grants., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, authorizations: { type: array, items: { type: object } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [keeper-self]
+      operationId: keeperGrantAccess
+      summary: Grant a vendor access to the keeper's herd (idempotent)
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [integrator_id], properties: { integrator_id: { type: string }, scope: { type: string } } } } }
+      responses:
+        '201': { description: Granted., content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /keeper/authorizations/{id}:
+    delete:
+      tags: [keeper-self]
+      operationId: keeperRevokeAccess
+      summary: Revoke a vendor's access (the vendor-switch primitive)
+      security: [{ keeperSession: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Revoked., content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /healthz:
+    get:
+      tags: [system]
+      operationId: health
+      summary: Liveness probe
+      security: []
+      responses:
+        '200':
+          description: Service healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+                  version: { type: string }
+                required: [status]
+
+components:
+  securitySchemes:
+    operatorApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        Per-operator API key. Every integrated platform (FuroTrack, competitor apps,
+        abattoir systems) is issued its own key so the registry attributes every
+        submission to a known operator.
+    keeperSession:
+      type: apiKey
+      in: cookie
+      name: zlits_keeper
+      description: |
+        Keeper self-service session ("My ZLITS"). A SEPARATE, low-trust plane from the
+        integrator `operatorApiKey` and the staff admin session: a keeper (a livestock owner)
+        signs in to their OWN registry record and may only read/write their OWN herd,
+        movements and certificate requests. Production establishes it by a one-time code to the
+        keeper's verified mobile; the session is the same registry record integrators and the
+        Admin Portal see (one keeper, many lenses).
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Client-generated key that makes a write safe to retry. The registry must
+        return the original result for a repeated key (clients retry with backoff and
+        a per-registry circuit breaker).
+      schema: { type: string, maxLength: 200 }
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing or invalid operator API key.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflicting state.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unprocessable:
+      description: Validation failed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    AnimalRegistration:
+      type: object
+      description: An animal presented for national registration.
+      required: [species, sex]
+      properties:
+        national_id:
+          type: string
+          description: Official national ID, if already assigned. Omit to have ZLITS assign one.
+        visual_tag:
+          type: string
+          description: Human-readable ear-tag / brand number.
+        eid:
+          type: string
+          description: Electronic ID (RFID) if fitted.
+        species: { type: string, examples: [cattle] }
+        breed: { type: string, examples: [Tuli] }
+        sex: { type: string, enum: [male, female] }
+        date_of_birth: { type: string, format: date }
+        holding_id:
+          type: string
+          description: Registered holding / farm number (the keeper's premises).
+        keeper_id:
+          type: string
+          description: The registry keeper this animal belongs to (resolve via /keepers/resolve).
+        keeper_name:
+          type: string
+          deprecated: true
+          description: Deprecated — kept for the legacy owner_name→keeper_name mapping; prefer keeper_id.
+        district: { type: string }
+        fmd_zone_code:
+          type: string
+          description: Veterinary zone the animal is kept in (see /zones).
+        external_references:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            Per-integrator local IDs ({integrator_id: vendor_animal_id}) — aliases that point at
+            this national_id, never a competing identity.
+      additionalProperties: false
+
+    AnimalAck:
+      type: object
+      required: [national_id, status]
+      properties:
+        national_id: { type: string, description: The official national ID (authoritative). }
+        id: { type: string, description: Registry record ID. }
+        status: { type: string, enum: [registered, already_exists] }
+        matched_on:
+          type: string
+          enum: [tag]
+          description: Present when an existing animal was matched by physical tag (find-or-create).
+        registered_at: { type: string, format: date-time }
+
+    AnimalRecord:
+      allOf:
+        - $ref: '#/components/schemas/AnimalRegistration'
+        - type: object
+          properties:
+            national_id: { type: string }
+            status: { type: string, enum: [active, slaughtered, dead, exported, lost] }
+            registered_at: { type: string, format: date-time }
+            current_holding_id: { type: string }
+
+    KeeperResolve:
+      type: object
+      description: |
+        Find-or-claim input. At least one of `national_id_no` / `msisdn` must be supplied — that
+        natural key is what makes the keeper one row across the keeper app and every integrator.
+      properties:
+        national_id_no: { type: string, description: National identity number (sovereign natural key). }
+        msisdn: { type: string, description: Verified mobile number — the smallholder natural key. }
+        name: { type: string, description: Used only when creating a new keeper. }
+        contact: { type: string }
+      additionalProperties: false
+
+    Keeper:
+      type: object
+      required: [keeper_id, name, status]
+      properties:
+        keeper_id: { type: string }
+        name: { type: string }
+        contact: { type: string }
+        national_id_no: { type: [string, 'null'] }
+        msisdn: { type: [string, 'null'] }
+        verification:
+          type: string
+          enum: [claimed, verified]
+          description: claimed (low-trust self-/vendor-asserted) vs verified (checked against a national ID).
+        status: { type: string }
+        outcome:
+          type: string
+          enum: [matched, created]
+          description: Whether resolve matched an existing keeper or created a new one.
+
+    Movement:
+      type: object
+      required: [animals, origin, destination, purpose]
+      properties:
+        permit_number:
+          type: string
+          description: Operator/local permit number, if any. The registry returns its own permit_reference.
+        animals:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/MovementSubject' }
+        head_count: { type: integer, minimum: 1 }
+        origin:
+          type: string
+          description: Origin holding_id or description.
+        origin_zone_code: { type: string }
+        destination: { type: string }
+        destination_zone_code: { type: string }
+        destination_type:
+          type: string
+          enum: [farm, market, abattoir, export, other]
+        purpose:
+          type: string
+          enum: [sale, breeding, grazing, slaughter, export, other]
+        transporter: { type: string }
+        vehicle_registration: { type: string }
+        departure_date: { type: string, format: date }
+        arrival_date: { type: string, format: date }
+        vet_endorsement:
+          type: string
+          description: Name/ID of the endorsing veterinary official.
+        regulatory_reference: { type: string }
+      additionalProperties: false
+
+    MovementSubject:
+      type: object
+      required: [national_id]
+      properties:
+        national_id: { type: string }
+        visual_tag: { type: string }
+        species: { type: string }
+        fmd_zone_code: { type: string }
+
+    MovementAck:
+      type: object
+      required: [permit_reference, status]
+      properties:
+        permit_reference: { type: string, description: Authoritative registry permit reference. }
+        id: { type: string }
+        status: { type: string, enum: [recorded, restricted, blocked] }
+        crosses_zone_boundary: { type: boolean }
+        recorded_at: { type: string, format: date-time }
+
+    Vaccination:
+      type: object
+      required: [national_id, disease, administered_at]
+      properties:
+        national_id: { type: string }
+        disease: { type: string, examples: [foot-and-mouth disease] }
+        vaccine_name: { type: string }
+        lot_number: { type: string }
+        dose: { type: string }
+        administered_at: { type: string, format: date-time }
+        next_due_at: { type: string, format: date-time }
+        administered_by: { type: string, description: Veterinary official name/ID. }
+        campaign_id: { type: string }
+      additionalProperties: false
+
+    VaccinationAck:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        status: { type: string, enum: [recorded] }
+        recorded_at: { type: string, format: date-time }
+
+    ZoneDelta:
+      type: object
+      required: [server_version, zones]
+      properties:
+        server_version: { type: integer, format: int64, description: Highest zone_version in the registry. }
+        zones_returned: { type: integer }
+        zones:
+          type: array
+          items: { $ref: '#/components/schemas/Zone' }
+
+    Zone:
+      type: object
+      required: [zone_code, zone_name, zone_type, movement_restriction, country_code, zone_version, effective_from]
+      properties:
+        zone_code: { type: string, examples: [ZW-FMD-RED-SE] }
+        zone_name: { type: string }
+        zone_type: { type: string, enum: [fmd_free, fmd_protection, fmd_infected, surveillance] }
+        movement_restriction: { type: string, enum: [none, restricted, blocked] }
+        country_code: { type: string, default: ZW }
+        registry: { type: string, default: zlits }
+        boundary_wkt:
+          type: [string, 'null']
+          description: WKT polygon/multipolygon, or null when registry-only (no spatial guard).
+        zone_version: { type: integer, format: int64 }
+        effective_from: { type: string, format: date }
+        effective_until: { type: [string, 'null'], format: date }
+
+    CertificateRequest:
+      type: object
+      required: [kind, subject_type, subject_id]
+      properties:
+        kind:
+          type: string
+          enum: [movement_permit, health, export, traceability]
+        subject_type:
+          type: string
+          enum: [animal, consignment, movement]
+        subject_id:
+          type: string
+          description: national_id, permit_reference, or movement id, per `kind`.
+        destination: { type: string }
+        valid_until: { type: string, format: date }
+        vet_endorsement:
+          type: string
+          description: Name/ID of the endorsing Official Veterinarian, where required.
+        notes: { type: string }
+      additionalProperties: false
+
+    Certificate:
+      type: object
+      required: [id, kind, reference, status]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [movement_permit, health, export, traceability] }
+        subject_type: { type: string }
+        subject_id: { type: string }
+        reference: { type: string, description: Official certificate number assigned by the registry. }
+        status: { type: string, enum: [requested, issued, revoked, superseded, expired] }
+        issued_at: { type: string, format: date-time }
+        valid_until: { type: [string, 'null'], format: date }
+        signing_key_id: { type: string, description: Key the competent authority signed with. }
+        signature: { type: string, description: Base64 detached signature over the canonical payload. }
+        verify_token: { type: string }
+        verify_url:
+          type: string
+          format: uri
+          description: Public QR target — resolves to GET /v1/verify/{token}.
+        pdf_url:
+          type: string
+          format: uri
+          description: Canonical printable PDF rendered and signed by the registry.
+        revoked_at: { type: [string, 'null'], format: date-time }
+        revocation_reason: { type: [string, 'null'] }
+
+    CertificateRevocation:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+
+    VerificationResult:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+        kind: { type: string, description: Present when the token resolves to a certificate. }
+        reference: { type: string }
+        national_id: { type: string }
+        species: { type: string }
+        status: { type: string }
+        holding_district: { type: string }
+        last_verified_event: { type: string }
+        issued_at: { type: string, format: date-time }
+        valid_until: { type: string }
+        subject_type: { type: string }
+        subject_id: { type: string }
+        pdf_url: { type: string, description: Public PDF of the issued certificate, when available. }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, examples: [zone_blocked] }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+
+  examples:
+    AnimalRegistrationExample:
+      summary: Register a Tuli cow
+      value:
+        visual_tag: ZW-0012345
+        eid: "982 000412345678"
+        species: cattle
+        breed: Tuli
+        sex: female
+        date_of_birth: "2023-09-14"
+        holding_id: HLD-MAT-00891
+        keeper_name: T. Moyo
+        district: Matabeleland South
+        fmd_zone_code: ZW-FMD-RED-SE
+
+    MovementExample:
+      summary: Two head to Bulawayo abattoir
+      value:
+        permit_number: MVP-2026-00477
+        animals:
+          - { national_id: ZW-CAT-0000123, visual_tag: ZW-0012345, species: cattle, fmd_zone_code: ZW-FMD-RED-SE }
+          - { national_id: ZW-CAT-0000124, visual_tag: ZW-0012346, species: cattle, fmd_zone_code: ZW-FMD-RED-SE }
+        head_count: 2
+        origin: HLD-MAT-00891
+        origin_zone_code: ZW-FMD-RED-SE
+        destination: Bulawayo Municipal Abattoir
+        destination_type: abattoir
+        purpose: slaughter
+        transporter: Sibanda Haulage
+        vehicle_registration: AEK-4421
+        departure_date: "2026-06-04"
+        vet_endorsement: Dr N. Ncube (DVS Gwanda)
+        regulatory_reference: AHA-19:01
+
+    VaccinationExample:
+      summary: FMD vaccination
+      value:
+        national_id: ZW-CAT-0000123
+        disease: foot-and-mouth disease
+        vaccine_name: Aftovax
+        lot_number: AFT-2026-08
+        dose: 2 mL SC
+        administered_at: "2026-05-30T08:15:00Z"
+        next_due_at: "2026-11-30T00:00:00Z"
+        administered_by: Dr N. Ncube (DVS Gwanda)
+        campaign_id: ZW-FMD-2026-H1
+
+    CertificateRequestExample:
+      summary: Issue a movement permit certificate
+      value:
+        kind: movement_permit
+        subject_type: movement
+        subject_id: MVP-2026-00477
+        destination: Bulawayo Municipal Abattoir
+        valid_until: "2026-06-11"
+        vet_endorsement: Dr N. Ncube (DVS Gwanda)

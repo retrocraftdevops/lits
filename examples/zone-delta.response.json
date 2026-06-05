@@ -1,0 +1,30 @@
+{
+  "server_version": 1042,
+  "zones_returned": 2,
+  "zones": [
+    {
+      "zone_code": "ZW-FMD-RED-SE",
+      "zone_name": "South-East FMD Red Zone",
+      "zone_type": "fmd_infected",
+      "movement_restriction": "restricted",
+      "country_code": "ZW",
+      "registry": "zlits",
+      "boundary_wkt": "MULTIPOLYGON(((31.0 -22.2, 31.9 -22.2, 31.9 -21.3, 31.0 -21.3, 31.0 -22.2)))",
+      "zone_version": 1041,
+      "effective_from": "2026-04-01",
+      "effective_until": null
+    },
+    {
+      "zone_code": "ZW-FMD-GREEN-CENTRAL",
+      "zone_name": "Central FMD-Free Zone",
+      "zone_type": "fmd_free",
+      "movement_restriction": "none",
+      "country_code": "ZW",
+      "registry": "zlits",
+      "boundary_wkt": null,
+      "zone_version": 1042,
+      "effective_from": "2026-01-01",
+      "effective_until": null
+    }
+  ]
+}

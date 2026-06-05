@@ -1,0 +1,25 @@
+name: validate-contract
+
+# Quality gate for the open LITS API contract. The contract is the single agreement
+# between every national registry and every client, so it must never merge broken.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install validators
+        run: python -m pip install --quiet pyyaml openapi-spec-validator
+      - name: Structural + spec validation (+ SPDX headers)
+        run: python3 scripts/validate.py
+      - name: Lint OpenAPI (Redocly)
+        run: npx --yes @redocly/cli@latest lint openapi.yaml openapi-admin.yaml --format=stylish

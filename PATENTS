@@ -1,0 +1,58 @@
+ZLITS Patent Non-Assertion Covenant
+===================================
+
+Canonical text of the covenant summarised in GOVERNANCE.md §3. Its purpose is to let any
+party — including a competitor — invest in implementing the ZLITS contract without fear of a
+patent ambush, and to signal to the State and to other vendors that the standard is genuinely
+open.
+
+1. Definitions
+--------------
+"Contract" means the published ZLITS API contract in this repository: openapi.yaml,
+openapi-admin.yaml, and the normative schemas and examples they reference.
+
+"Conformant Implementation" means software, to the extent it implements the Contract and passes
+the conformance suite in reference-impl/tests/.
+
+"Necessary Claims" means those patent claims that the Steward or a Contributor owns or controls
+and that are necessarily infringed by implementing the Contract, where there is no commercially
+reasonable, non-infringing alternative way to implement it. Necessary Claims do NOT include
+claims infringed only because of: (a) features or functions not required by the Contract, or
+(b) combination of a Conformant Implementation with other software or hardware.
+
+"Steward" means the current steward of the Contract (see GOVERNANCE.md §2); "Contributor" means
+any party that contributes to the Contract.
+
+2. The covenant
+---------------
+The Steward and each Contributor irrevocably covenant not to assert any Necessary Claims against
+any party for making, using, selling, offering, importing, or operating a Conformant
+Implementation, for as long as that implementation remains conformant.
+
+3. Defensive suspension
+-----------------------
+The covenant extended to a given party is suspended if that party (or its affiliate) initiates or
+voluntarily participates in a patent assertion (a claim, cross-claim, or counterclaim) alleging
+that the Contract or any Conformant Implementation infringes a patent. This protects good-faith
+implementers without disarming the ecosystem against an aggressor.
+
+4. Relationship to the Apache License 2.0
+-----------------------------------------
+This covenant is IN ADDITION TO, and does not limit, the patent licence granted under the Apache
+License 2.0 (see LICENSE) for code contributed to this repository. Where the two overlap, the
+broader grant controls.
+
+5. Scope limits
+---------------
+This covenant grants no rights under copyright, and no trademark rights. Copyright licensing is in
+LICENSE and LICENSE-docs; trademark and conformance-mark terms are in TRADEMARK.md.
+
+6. Durability
+-------------
+The covenant is irrevocable (subject only to §3) and SURVIVES any transfer of stewardship,
+including the handover of the Contract to the State or a neutral national body on designation
+(GOVERNANCE.md §2). Consistent with GOVERNANCE.md §7, it is a one-way ratchet: a future steward
+may broaden it but may not revoke or narrow it.
+
+Copyright [2026] The ZLITS steward. Licensed under CC BY 4.0 (see LICENSE-docs); the covenant
+itself is binding independently of the licence on this text.
