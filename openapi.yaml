@@ -362,7 +362,7 @@ paths:
                 national_id_no: { type: string }
       responses:
         '201':
-          description: The keeper (created or matched); a `zlits_keeper` session cookie is set.
+          description: The keeper (created or matched); a `keeper_session` session cookie is set.
           content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /keeper/login:
@@ -414,7 +414,7 @@ paths:
         required: true
         content: { application/json: { schema: { type: object, required: [msisdn, code], properties: { msisdn: { type: string }, code: { type: string }, name: { type: string } } } } }
       responses:
-        '200': { description: Signed in; a zlits_keeper session cookie is set., content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } } }
+        '200': { description: Signed in; a keeper_session session cookie is set., content: { application/json: { schema: { $ref: '#/components/schemas/Keeper' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
   /keeper/me:
     get:
@@ -710,7 +710,7 @@ components:
     keeperSession:
       type: apiKey
       in: cookie
-      name: zlits_keeper
+      name: keeper_session
       description: |
         Keeper self-service session ("keeper self-service"). A SEPARATE, low-trust plane from the
         integrator `operatorApiKey` and the staff admin session: a keeper (a livestock owner)

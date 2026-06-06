@@ -5,8 +5,8 @@ legal role over the data, and the concrete path from *draft contract* to a *mand
 national system. Authority for a national registry is **conferred by the State, never
 self-declared** — this document is the map of how that conferral happens.
 
-> Status: DRAFT design. Pairs with [registry-operations.md](./registry-operations.md) (who
-> operates it) and [zlits-spec-governance.md](./zlits-spec-governance.md) (how the *standard*
+> Status: DRAFT design. Pairs with registry-operations.md (who
+> operates it) and [spec-governance.md](../../docs/spec-governance.md) (how the *standard*
 > is governed). The commercial terms and the full nationalization strategy live in the
 > partnering strategy brief held privately with the anchor client. Statutory references are
 > to-be-confirmed with the Department of Veterinary Services (DVS) before `1.0.0`.
@@ -47,7 +47,7 @@ ZLITS from "a system that exists" into "the system you must use" is an SI made u
 [Chapter 19:01] that:
 
 1. **Designates the official system** — names ZLITS (final acronym set at ratification, see
-   [../CONTRIBUTING.md](../CONTRIBUTING.md)) as the national livestock identification &
+   [../CONTRIBUTING.md](../../CONTRIBUTING.md)) as the national livestock identification &
    traceability register.
 2. **Designates the operator** — names the delegated operator and the legal basis of the
    delegation (the concession or tender award, §4).
@@ -80,7 +80,7 @@ ZLITS holds personal data — keeper names, holdings, districts, contacts. Under
 Consequences that shape the build:
 
 - **Least-privilege RBAC and a full audit trail** are legal requirements, not features — see
-  [registry-operations.md §5–6](./registry-operations.md) and [GOVERNANCE.md §6](../GOVERNANCE.md).
+  registry-operations.md §5–6 and [GOVERNANCE.md §6](../../GOVERNANCE.md).
 - **Operator change / exit must not lose data** — because the operator is only a processor,
   the data and its continuity belong to the State (escrow / handover in the operating
   agreement).
@@ -90,7 +90,7 @@ Consequences that shape the build:
 
 This is also why no client (FuroTrack included) is a controller or processor of the national
 record: clients **submit and read** under their own keys; the registry is the system of
-record. See the two-plane model in [registry-operations.md §0](./registry-operations.md).
+record. See the two-plane model in registry-operations.md §0.
 
 ---
 
@@ -102,7 +102,7 @@ record. See the two-plane model in [registry-operations.md §0](./registry-opera
 | **PPP / concession** | ZIDA Act [Chapter 14:37] | An operator **builds and operates** at its own investment and earns a regulated return (fees / service charge) under a time-bound concession. Fits a build-operate-transfer model where the operator already has the implementation. |
 
 The concession route is the natural fit for ZLITS because the implementation already exists
-as a **held** asset (see [zlits-spec-governance.md §1](./zlits-spec-governance.md)): the State
+as a **held** asset (see [spec-governance.md §1](../../docs/spec-governance.md)): the State
 confers the mandate and oversight; the operator brings the working system and run it as
 processor. The **standard stays open** (so there is no lock-in and competitors integrate on
 equal terms) while the **operating concession** is what the operator actually holds. Opening
@@ -142,8 +142,8 @@ work — designation only changes *who must* use them.
 | **The "ZLITS" name & conformance mark** | **State / operator** | Trademark — open spec, controlled name (impersonation protection). |
 
 The credibility move is to commit, **in writing and now**, that spec stewardship transfers to
-the State / a neutral board on designation — see [GOVERNANCE.md §2](../GOVERNANCE.md) and
-[zlits-spec-governance.md §5](./zlits-spec-governance.md). That single commitment is what turns
+the State / a neutral board on designation — see [GOVERNANCE.md §2](../../GOVERNANCE.md) and
+[spec-governance.md §5](../../docs/spec-governance.md). That single commitment is what turns
 "a vendor's API" into "the national standard" in a government reviewer's eyes, and it is free
 to give because stewardship of the *standard* is separate from operation of the *instance*.
 
@@ -153,7 +153,7 @@ to give because stewardship of the *standard* is separate from operation of the 
 
 - [ ] Exact citation of the designating SI and its parent provisions in [Chapter 19:01].
 - [ ] The `national_id` numbering scheme and the official acronym (set with DVS — see
-      [../CONTRIBUTING.md](../CONTRIBUTING.md)).
+      [../CONTRIBUTING.md](../../CONTRIBUTING.md)).
 - [ ] Engagement route chosen (tender vs concession, §4) and the operating agreement's
       data-continuity / escrow terms.
 - [ ] POTRAZ registration of the controller/processor relationship.
@@ -163,8 +163,8 @@ to give because stewardship of the *standard* is separate from operation of the 
 
 ## References
 
-- ZLITS principle & instruments — [../README.md](../README.md)
-- Operations, RBAC & audit — [registry-operations.md](./registry-operations.md)
-- Standard governance, licensing & stewardship handover — [zlits-spec-governance.md](./zlits-spec-governance.md), [../GOVERNANCE.md](../GOVERNANCE.md)
-- Change & ratification policy — [../CONTRIBUTING.md](../CONTRIBUTING.md)
-- Comparable national frameworks — Australia **NLIS**, New Zealand **NAIT**, EU **TRACES NT** (see [registry-operations.md → References](./registry-operations.md))
+- ZLITS principle & instruments — [../README.md](../../README.md)
+- Operations, RBAC & audit — registry-operations.md
+- Standard governance, licensing & stewardship handover — [spec-governance.md](../../docs/spec-governance.md), [../GOVERNANCE.md](../../GOVERNANCE.md)
+- Change & ratification policy — [../CONTRIBUTING.md](../../CONTRIBUTING.md)
+- Comparable national frameworks — Australia **NLIS**, New Zealand **NAIT**, EU **TRACES NT** (see registry-operations.md → References)

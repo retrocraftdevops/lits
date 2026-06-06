@@ -6,7 +6,7 @@ dry-run → live lifecycle. **FuroTrack is the worked reference** throughout (it
 client, not the owner); every other vendor integrates the same way with its own API key.
 
 > Status: DRAFT design. Pairs with the client contract [../openapi.yaml](../openapi.yaml) and
-> the two-plane model in [registry-operations.md §0](./registry-operations.md). No production
+> the two-plane model in registry-operations.md §0. No production
 > endpoint exists yet — until a sandbox is live, clients run in **dry-run** (§7).
 
 ---
@@ -15,7 +15,7 @@ client, not the owner); every other vendor integrates the same way with its own 
 
 LITS runs on a **control plane** (the sovereign registry + Admin Portal, on `*.gov.zw`) and
 a **client plane** (your capture app). The full model is in
-[registry-operations.md §0](./registry-operations.md); the only thing a client must internalise:
+registry-operations.md §0; the only thing a client must internalise:
 
 - **The registry is the source of truth.** You **submit** events and **read** reference data.
   You never own the national identity, movement or health record.
@@ -100,7 +100,7 @@ gracefully and never lose an event. The FuroTrack reference flush worker shows t
 ## 4. Zone reference sync (delta)
 
 Veterinary / FMD zones are **authored by DVS in the Admin Portal** and **only consumed** by
-clients — a client never creates a national zone ([registry-operations.md §1](./registry-operations.md)).
+clients — a client never creates a national zone (registry-operations.md §1).
 
 - Call `GET /v1/zones?since_version=N` with the last `server_version` you stored; the registry
   returns only zones whose `zone_version > N`, plus the current `server_version`.
@@ -133,7 +133,7 @@ decision, so do **not** feed it to the retry/circuit-breaker path (§3).
 ## 6. Certificates — request only; the registry issues & signs
 
 This is the rule clients most often get wrong. The certificate of record is **minted by the
-authority, never by a client** ([registry-operations.md §4](./registry-operations.md)).
+authority, never by a client** (registry-operations.md §4).
 
 1. A client `POST /v1/certificates` only **requests** one → status `requested`, **unsigned**.
 2. The competent authority (Official Vet / DVS) **issues and signs** it on the control plane,
@@ -177,7 +177,7 @@ real submission.
 
 ## 8. Accreditation & conformance
 
-Open spec does **not** mean anyone may pose as official ([zlits-spec-governance.md §3](./zlits-spec-governance.md)).
+Open spec does **not** mean anyone may pose as official ([spec-governance.md §3](./spec-governance.md)).
 
 - Run the **conformance suite** (the conformance suite) against your
   integration — it ties behaviour to the contract so the two cannot drift.
@@ -204,7 +204,7 @@ Open spec does **not** mean anyone may pose as official ([zlits-spec-governance.
 ## References
 
 - Client API contract — [../openapi.yaml](../openapi.yaml) · examples — [../examples/](../examples/)
-- Two-plane model, zones, certificates, RBAC — [registry-operations.md](./registry-operations.md)
-- Conformance, trademark & accreditation — [zlits-spec-governance.md](./zlits-spec-governance.md), [../TRADEMARK.md](../TRADEMARK.md)
+- Two-plane model, zones, certificates, RBAC — registry-operations.md
+- Conformance, trademark & accreditation — [spec-governance.md](./spec-governance.md), [../TRADEMARK.md](../TRADEMARK.md)
 - Load-bearing conventions & change policy — [../CONTRIBUTING.md](../CONTRIBUTING.md)
 - Why FuroTrack is the reference, not the owner — [../README.md](../README.md)
