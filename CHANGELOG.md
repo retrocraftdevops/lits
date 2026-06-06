@@ -11,7 +11,8 @@ First public draft of the open LITS contract. Current surface:
 - **Client API** (`openapi.yaml`): `POST /v1/animals`, `GET /v1/animals/{national_id}`,
   `POST /v1/movements`, `POST /v1/vaccinations`, `POST /v1/certificates` (request),
   `GET /v1/certificates/{id}`, `POST /v1/certificates/{id}/revoke`, `GET /v1/zones` (delta sync),
-  `GET /v1/verify/{token}` (public, no auth), `GET /healthz`. Per-operator bearer auth,
+  `GET /v1/campaigns` (active vaccination campaigns), `GET /v1/verify/{token}` (public, no auth),
+  `GET /healthz`. Per-operator bearer auth,
   `Idempotency-Key` on writes, acknowledgement IDs on every response.
 - **Control-plane API** (`openapi-admin.yaml`): zone authoring, integrator accreditation and
   API-key management, certificate issue/revoke, movement transitions, and audit.
