@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS — Livestock Identification & Traceability System
-  version: 1.6.0-draft
+  version: 1.7.0-draft
   summary: Vendor-neutral national livestock registry API (the source of truth).
   description: |
     LITS is the national registry of record for livestock **identity**, **movement**
@@ -67,8 +67,10 @@ paths:
       summary: Register / identify an animal
       description: |
         Registers an animal in the national herd and returns its official
-        `national_id`. If the submitted animal already exists (by `national_id` or by
-        the `Idempotency-Key`), the existing record is returned unchanged.
+        `national_id`. The registry assigns this ID from its Postgres-backed sequence; clients
+        must not send a final `national_id` on normal registration. If the submitted animal
+        already exists by physical tag/device or by the `Idempotency-Key`, the existing record is
+        returned unchanged. Local/vendor identifiers belong in `external_references`.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -342,6 +344,55 @@ paths:
               schema: { $ref: '#/components/schemas/VerificationResult' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /trust-list:
+    get:
+      tags: [verification]
+      operationId: trustList
+      summary: National Trusted List (qualified e-seal trust anchor + seal certificates)
+      description: |
+        The signed national Trusted List (EU LOTL-equivalent): the trust anchor, the active and
+        superseded qualified seal certificates, the time-stamp authority, and the seal-revocation
+        list. An importing authority pins this once, then verifies every qualified e-seal it is
+        presented **fully offline** — no call-back to the issuing registry.
+      security: []
+      responses:
+        '200':
+          description: The signed Trusted List.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrustList' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /seals/verify:
+    post:
+      tags: [verification]
+      operationId: verifySeal
+      summary: Validate a presented qualified e-seal (ETSI TS 119 102-1 report)
+      description: |
+        Validate a presented qualified electronic seal and return an ETSI TS 119 102-1 validation
+        report. Accepts a certificate object carrying a `seal`, or an explicit `{ seal, core }` pair
+        (an eCert exposes these as `qualified_seal` + `signed_core`). Verification is offline against
+        the Trusted List: it checks the issuer signature, the chain to the national trust anchor, the
+        qualified timestamp, seal-certificate revocation and validity. Altering any sealed field
+        yields `TOTAL_FAILED` / `SIG_CRYPTO_FAILURE`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seal: { $ref: '#/components/schemas/QualifiedSeal' }
+                core: { type: object, description: The canonical signed payload the seal covers. }
+      responses:
+        '200':
+          description: Validation report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SealValidationReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
   # ---- keeper self-service ("keeper self-service") — keeperSession auth, owner-scoped --------------
   /keeper/claim:
     post:
@@ -480,6 +531,51 @@ paths:
       responses:
         '200': { description: Herd., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, animals: { type: array, items: { $ref: '#/components/schemas/AnimalRecord' } } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /keeper/scans:
+    post:
+      tags: [keeper-self]
+      operationId: keeperScanForRegistration
+      summary: Scan a tag/device as keeper registration evidence
+      description: |
+        Records a self-report scan and resolves the tag if it already exists. Unknown tags return
+        a registration_hint that the keeper app can use to prefill animal registration. This does
+        not confirm ownership, retagging, movement arrival, inspection, or disease status.
+      security: [{ keeperSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                raw_tag: { type: string }
+                visual_tag: { type: string }
+                eid: { type: string }
+                tag_type: { type: string, enum: [visual, eid], default: visual }
+                reader_type: { type: string, default: manual }
+                holding_id: { type: string }
+                lat: { type: number }
+                lng: { type: number }
+                gps_accuracy_m: { type: number }
+                device_id: { type: string }
+                app_version: { type: string }
+                captured_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Scan recorded; tag either matched an owned animal or can prefill registration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [unknown_tag, matched_owned] }
+                  scan: { type: object, additionalProperties: true }
+                  animal: { $ref: '#/components/schemas/AnimalRecord' }
+                  registration_hint: { type: object, additionalProperties: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
   /keeper/holdings:
     get:
       tags: [keeper-self]
@@ -741,6 +837,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Authenticated principal cannot access this resource.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
     NotFound:
       description: Resource not found.
       content:
@@ -765,7 +866,9 @@ components:
       properties:
         national_id:
           type: string
-          description: Official national ID, if already assigned. Omit to have LITS assign one.
+          readOnly: true
+          deprecated: true
+          description: Registry-generated official ID. Normal POST /animals rejects caller-supplied values; legacy IDs require the authority import path.
         visual_tag:
           type: string
           description: Human-readable ear-tag / brand number.
@@ -805,6 +908,12 @@ components:
         national_id: { type: string, description: The official national ID (authoritative). }
         id: { type: string, description: Registry record ID. }
         status: { type: string, enum: [registered, already_exists] }
+        generated_id:
+          type: boolean
+          description: true when the registry sequence minted the ID; false only for audited legacy import.
+        id_source:
+          type: string
+          enum: [registry_sequence, legacy_import]
         matched_on:
           type: string
           enum: [tag]
@@ -1014,6 +1123,8 @@ components:
         valid_until: { type: [string, 'null'], format: date }
         signing_key_id: { type: string, description: Key the competent authority signed with. }
         signature: { type: string, description: Base64 detached signature over the canonical payload. }
+        seal_level: { type: string, enum: [B, T, LT], description: 'ETSI baseline of the qualified e-seal: B (seal), T (+ qualified timestamp), LT (+ embedded validation data).' }
+        seal: { $ref: '#/components/schemas/QualifiedSeal' }
         verify_token: { type: string }
         verify_url:
           type: string
@@ -1049,6 +1160,77 @@ components:
         subject_type: { type: string }
         subject_id: { type: string }
         pdf_url: { type: string, description: Public PDF of the issued certificate, when available. }
+        seal_level: { type: string, enum: [B, T, LT], description: 'Qualified e-seal level on the certificate, when sealed.' }
+        seal:
+          type: object
+          description: Compact qualified-seal status (full report via POST /seals/verify).
+          properties:
+            level: { type: string, enum: [B, T, LT] }
+            serial: { type: string }
+            indication: { type: string, enum: [TOTAL_PASSED, INDETERMINATE, TOTAL_FAILED] }
+            sub_indication: { type: [string, 'null'] }
+
+    QualifiedSeal:
+      type: object
+      description: |
+        An eIDAS qualified electronic seal over a certificate's canonical core (JAdES-style). It wraps
+        the issuer's detached signature with the certificate chain to the national trust anchor, a
+        qualified timestamp (level ≥ T) and embedded validation data (level LT) for offline verification.
+      required: [format, level, value, chain]
+      properties:
+        format: { type: string, examples: [LITS-JAdES/1.0] }
+        level: { type: string, enum: [B, T, LT] }
+        alg: { type: string, examples: [EdDSA] }
+        kid: { type: string, description: Issuer key id the seal value was produced with. }
+        seal_serial: { type: string, description: Serial of the qualified seal certificate used. }
+        created: { type: string, format: date-time }
+        value: { type: string, description: Base64 Ed25519 signature over the canonical core. }
+        chain:
+          type: array
+          description: 'Seal certificate then trust anchor (x5c-equivalent).'
+          items: { type: object }
+        timestamp: { type: object, description: 'Qualified timestamp token (level ≥ T).' }
+        validation_data: { type: object, description: 'Trusted-list reference + revocation snapshot (level LT).' }
+
+    SealValidationReport:
+      type: object
+      description: ETSI TS 119 102-1 validation result for a qualified e-seal.
+      required: [indication]
+      properties:
+        indication: { type: string, enum: [TOTAL_PASSED, INDETERMINATE, TOTAL_FAILED] }
+        sub_indication:
+          type: [string, 'null']
+          description: 'e.g. SIG_CRYPTO_FAILURE, NO_CERTIFICATE_CHAIN, REVOKED, EXPIRED, OUT_OF_BOUNDS_NO_POE, FORMAT_FAILURE.'
+        level: { type: [string, 'null'], enum: [B, T, LT, 'null'] }
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              status: { type: string, enum: [passed, failed] }
+              detail: { type: string }
+        seal_certificate: { type: [object, 'null'] }
+        proof_of_existence: { type: [string, 'null'], format: date-time }
+        validated_at: { type: string, format: date-time }
+
+    TrustList:
+      type: object
+      description: |
+        The signed national Trusted List (EU LOTL-equivalent) — trust anchor, qualified seal
+        certificates, the time-stamp authority, and the revocation list — pinned by an importing
+        authority to verify qualified e-seals offline.
+      required: [scheme, trust_anchors, seal_certificates]
+      properties:
+        scheme: { type: string, examples: [LITS-Trusted-List/1.0] }
+        territory: { type: string, description: ISO country code of the issuing registry. }
+        operator: { type: object }
+        sequence_number: { type: integer }
+        list_issued: { type: string, format: date-time }
+        trust_anchors: { type: array, items: { type: object } }
+        seal_certificates: { type: array, items: { type: object } }
+        revocation_list: { type: object }
+        proof: { type: object, description: Anchor signature over the list. }
 
     Error:
       type: object

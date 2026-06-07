@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS Admin / Control-Plane API
-  version: 1.3.0-draft
+  version: 1.4.0-draft
   summary: Sovereign control-plane API — zones, integrator accreditation & keys, audit.
   description: |
     The control-plane API used **only** by the LITS Admin Portal (DVS / operator staff).
@@ -44,6 +44,14 @@ tags:
     description: Register establishments (holdings) and keepers.
   - name: herd-admin
     description: Correct animal records (e.g. resolve data-quality issues).
+  - name: inspectorate-admin
+    description: Configure inspection templates and record structured field inspections.
+  - name: corrective-admin
+    description: Manage corrective actions raised from inspection and compliance findings.
+  - name: compliance-admin
+    description: Compliance audits, findings, and accreditation market-access controls.
+  - name: enforcement-admin
+    description: Enforcement cases, notices, fines, appeals, and sanctions register actions.
 
 paths:
   /admin/certificates:
@@ -256,6 +264,30 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/animals/import-legacy:
+    post:
+      tags: [herd-admin]
+      operationId: importLegacyAnimal
+      summary: Import a historical animal with an existing lawful national ID
+      description: |
+        Requires `settings:write` plus authority confirmation. Normal animal registration always
+        generates `national_id`; this endpoint exists only for migration of historical ledgers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnimalImport' }
+      responses:
+        '201':
+          description: Imported or already present.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnimalAck' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /admin/animals/{id}:
     patch:
@@ -602,6 +634,662 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /admin/inspection-templates:
+    get:
+      tags: [inspectorate-admin]
+      operationId: listInspectionTemplates
+      summary: List inspection checklist templates
+      parameters:
+        - { name: inspection_type, in: query, required: false, schema: { type: string } }
+        - { name: published_only, in: query, required: false, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Inspection templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/InspectionTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [inspectorate-admin]
+      operationId: createInspectionTemplate
+      summary: Create a draft inspection checklist template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InspectionTemplateWrite' }
+      responses:
+        '201':
+          description: Draft template created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/inspection-templates/{id}:
+    patch:
+      tags: [inspectorate-admin]
+      operationId: updateInspectionTemplate
+      summary: Edit an inspection template draft or create a new draft version
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InspectionTemplateWrite' }
+      responses:
+        '200':
+          description: Template updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/inspection-templates/{id}/publish:
+    post:
+      tags: [inspectorate-admin]
+      operationId: publishInspectionTemplate
+      summary: Publish a template version for field use
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Template published.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/inspection-templates/{id}/retire:
+    post:
+      tags: [inspectorate-admin]
+      operationId: retireInspectionTemplate
+      summary: Retire an inspection template
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Template retired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/inspections:
+    get:
+      tags: [inspectorate-admin]
+      operationId: listStructuredInspections
+      summary: List structured inspections
+      responses:
+        '200':
+          description: Structured inspections.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StructuredInspection' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [inspectorate-admin]
+      operationId: recordStructuredInspection
+      summary: Record a structured inspection against a published template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StructuredInspectionWrite' }
+      responses:
+        '201':
+          description: Inspection recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StructuredInspectionResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/inspections/{id}:
+    get:
+      tags: [inspectorate-admin]
+      operationId: getStructuredInspectionContext
+      summary: Get inspection detail, checks, linked records, and corrective actions
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Inspection context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InspectionContext' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/corrective-actions:
+    get:
+      tags: [corrective-admin]
+      operationId: listCorrectiveActions
+      summary: List corrective actions
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: holding_id, in: query, required: false, schema: { type: string } }
+        - { name: open_only, in: query, required: false, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Corrective actions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CorrectiveAction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [corrective-admin]
+      operationId: raiseCorrectiveAction
+      summary: Raise a corrective action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CorrectiveActionWrite' }
+      responses:
+        '201':
+          description: Corrective action raised.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CorrectiveAction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/corrective-actions/{id}:
+    get:
+      tags: [corrective-admin]
+      operationId: getCorrectiveActionContext
+      summary: Get corrective action detail, checks, source evidence and linked workflows
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Corrective action context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CorrectiveActionContext' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/compliance/audits:
+    get:
+      tags: [compliance-admin]
+      operationId: listComplianceAudits
+      summary: List compliance audits
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: subject_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Compliance audits.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ComplianceAudit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [compliance-admin]
+      operationId: openComplianceAudit
+      summary: Open a compliance audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ComplianceAuditWrite' }
+      responses:
+        '201':
+          description: Compliance audit opened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceAudit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/compliance/audits/{id}:
+    get:
+      tags: [compliance-admin]
+      operationId: getComplianceAuditContext
+      summary: Get audit detail, findings, accreditation, and linked workflows
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Compliance audit context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceAuditContext' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/compliance/audits/{id}/conduct:
+    post:
+      tags: [compliance-admin]
+      operationId: conductComplianceAudit
+      summary: Record audit conduct evidence and checklist results
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Audit conducted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceAudit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/compliance/audits/{id}/actions/{action}:
+    post:
+      tags: [compliance-admin]
+      operationId: actionComplianceAudit
+      summary: Advance a compliance audit workflow
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: action, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Audit workflow updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceAudit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/compliance/audits/{id}/findings:
+    post:
+      tags: [compliance-admin]
+      operationId: recordComplianceFinding
+      summary: Record a compliance finding
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ComplianceFindingWrite' }
+      responses:
+        '201':
+          description: Finding recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceFinding' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/accreditations:
+    get:
+      tags: [compliance-admin]
+      operationId: listAccreditations
+      summary: List explicit accreditation states
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Accreditations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Accreditation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/cases:
+    get:
+      tags: [enforcement-admin]
+      operationId: listEnforcementCases
+      summary: List enforcement cases
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string } }
+        - { name: subject_id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Enforcement cases.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [enforcement-admin]
+      operationId: openEnforcementCase
+      summary: Open a source-linked enforcement case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnforcementCaseWrite' }
+      responses:
+        '201':
+          description: Enforcement case opened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/cases/{id}:
+    get:
+      tags: [enforcement-admin]
+      operationId: getEnforcementCaseContext
+      summary: Get case detail, review checks, source evidence, and linked workflows
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Enforcement case context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/cases/{id}/actions/{action}:
+    post:
+      tags: [enforcement-admin]
+      operationId: actionEnforcementCase
+      summary: Advance or close an enforcement case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: action, in: path, required: true, schema: { type: string, enum: [assist, direct, enforce, close, withdraw] } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Case updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/cases/{id}/evidence:
+    post:
+      tags: [enforcement-admin]
+      operationId: attachEnforcementCaseEvidence
+      summary: Attach an evidence reference to an enforcement case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CaseEvidence' }
+      responses:
+        '201':
+          description: Evidence attached.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/cases/{id}/notices:
+    post:
+      tags: [enforcement-admin]
+      operationId: issueCaseNotice
+      summary: Issue a statutory notice on a case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: Notice issued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notice' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/cases/{id}/infringements:
+    post:
+      tags: [enforcement-admin]
+      operationId: assessCaseInfringement
+      summary: Assess a fine or infringement against a case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: Infringement assessed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Infringement' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/cases/{id}/appeal:
+    post:
+      tags: [enforcement-admin]
+      operationId: openCaseAppeal
+      summary: Record an appeal against a case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [grounds], properties: { grounds: { type: string } } }
+      responses:
+        '200':
+          description: Appeal opened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/cases/{id}/appeal/decide:
+    post:
+      tags: [enforcement-admin]
+      operationId: decideCaseAppeal
+      summary: Decide an appeal with segregation of duties
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [uphold, dismiss] }
+                comment: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Appeal decided.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnforcementCase' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/sanctions:
+    get:
+      tags: [enforcement-admin]
+      operationId: listSanctionsAdmin
+      summary: List internal sanctions register entries
+      description: Internal register view with links into the officer review workflow.
+      responses:
+        '200':
+          description: Sanctions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Sanction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/sanctions/{id}:
+    get:
+      tags: [enforcement-admin]
+      operationId: getSanctionContext
+      summary: Get sanction detail, review checks, source case, and linked records
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Sanction context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sanction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/sanctions/{id}/lift:
+    post:
+      tags: [enforcement-admin]
+      operationId: liftSanction
+      summary: Lift an active sanction with an audited reason
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SanctionLift' }
+      responses:
+        '200':
+          description: Sanction lifted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sanction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---- trust fabric: qualified e-seals (eIDAS) — trust:read / trust:manage --------------------------
+  /admin/trust:
+    get:
+      tags: [trust-admin]
+      operationId: trustOverview
+      summary: National trust fabric (anchor, qualified seal certificates, TSA, revocation list)
+      description: Requires `trust:read`. The trust anchor, the active/superseded qualified seal certificates, the time-stamp authority and the seal-revocation list.
+      responses:
+        '200': { description: Trust-fabric overview. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/trust/list:
+    get:
+      tags: [trust-admin]
+      operationId: trustPublishedList
+      summary: The signed Trusted List as published at /v1/trust-list
+      description: Requires `trust:read`.
+      responses:
+        '200': { description: The signed Trusted List. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/trust/verify:
+    post:
+      tags: [trust-admin]
+      operationId: trustVerifySeal
+      summary: Validate a pasted qualified seal / eCert (ETSI report)
+      description: Requires `trust:read`. Accepts a certificate with a `seal`, or `{ seal, core }` / eCert `{ qualified_seal, signed_core }`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: ETSI TS 119 102-1 validation report. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/trust/seals/rotate:
+    post:
+      tags: [trust-admin]
+      operationId: trustRotateSeal
+      summary: Rotate the issuer seal certificate (routine key hygiene)
+      description: Requires `trust:manage`. Supersedes the active certificate; existing seals keep validating against the superseded (not revoked) certificate.
+      responses:
+        '200': { description: The new active qualified seal certificate. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/trust/seals/{serial}/revoke:
+    post:
+      tags: [trust-admin]
+      operationId: trustRevokeSeal
+      summary: Revoke a seal certificate (e.g. key compromise)
+      description: Requires `trust:manage`. Seals citing the serial then validate as REVOKED; if it was active, a fresh certificate is rotated in.
+      parameters:
+        - { name: serial, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { reason: { type: string } }
+      responses:
+        '200': { description: Revocation recorded. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     adminSession:
@@ -825,6 +1513,37 @@ components:
         fmd_zone_code: { type: string }
         status: { type: string }
 
+    AnimalImport:
+      type: object
+      required: [national_id, species, sex]
+      properties:
+        national_id: { type: string, description: Historical lawful national ID being migrated. }
+        visual_tag: { type: string }
+        eid: { type: string }
+        species: { type: string }
+        breed: { type: string }
+        sex: { type: string, enum: [male, female] }
+        date_of_birth: { type: string, format: date }
+        holding_id: { type: string }
+        keeper_id: { type: string }
+        keeper_name: { type: string }
+        district: { type: string }
+        fmd_zone_code: { type: string }
+        external_references: { type: object, additionalProperties: { type: string } }
+        import_reference: { type: string }
+        import_batch: { type: string }
+      additionalProperties: false
+
+    AnimalAck:
+      type: object
+      required: [national_id, status]
+      properties:
+        national_id: { type: string }
+        id: { type: string }
+        status: { type: string, enum: [registered, already_exists] }
+        id_source: { type: string, enum: [registry_sequence, legacy_import] }
+        generated_id: { type: boolean }
+
     KeeperCreate:
       type: object
       required: [name]
@@ -860,6 +1579,455 @@ components:
         district: { type: string }
         province: { type: string }
         status: { type: string }
+
+    ChecklistItem:
+      type: object
+      required: [key]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        response_type: { type: string, enum: [pass_fail_na, numeric, text, choice, photo] }
+        choices:
+          type: array
+          items: { type: string }
+        severity: { type: string, enum: [observation, minor, major, critical] }
+        required: { type: boolean }
+        critical: { type: boolean }
+        require_photo: { type: boolean }
+        require_comment_on_fail: { type: boolean }
+        guidance: { type: string, nullable: true }
+
+    ChecklistResponse:
+      type: object
+      required: [key, result]
+      properties:
+        key: { type: string }
+        result: { type: string, enum: [pass, fail, na] }
+        comment: { type: string }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        value: {}
+        answer: {}
+
+    InspectionTemplateWrite:
+      type: object
+      required: [inspection_type, items]
+      properties:
+        inspection_type: { type: string }
+        title: { type: string }
+        cert_kinds:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistItem' }
+
+    InspectionTemplate:
+      allOf:
+        - { $ref: '#/components/schemas/InspectionTemplateWrite' }
+        - type: object
+          required: [template_id, status, template_version]
+          properties:
+            template_id: { type: string }
+            status: { type: string, enum: [draft, published, retired] }
+            template_version: { type: integer }
+            created_at: { type: string, nullable: true }
+
+    StructuredInspectionWrite:
+      type: object
+      required: [template_id, responses]
+      properties:
+        template_id: { type: string }
+        cert_id: { type: string, nullable: true }
+        visit_id: { type: string, nullable: true }
+        holding_id: { type: string, nullable: true }
+        inspector_reg_no: { type: string }
+        method: { type: string }
+        location: { type: string, nullable: true }
+        identity_verified: { type: boolean }
+        head_seen: { type: integer, nullable: true }
+        fitness_to_travel: { type: boolean }
+        clinical_findings: { type: string, nullable: true }
+        responses:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistResponse' }
+
+    StructuredInspection:
+      allOf:
+        - { $ref: '#/components/schemas/StructuredInspectionWrite' }
+        - type: object
+          required: [id, at]
+          properties:
+            id: { type: string }
+            at: { type: string }
+            by: { type: string }
+            role: { type: string }
+            inspection_type: { type: string }
+            template_version: { type: integer, nullable: true }
+            overall_result: { type: string, enum: [pass, minor, fail] }
+            score: { type: integer }
+            source: { type: string }
+
+    StructuredInspectionResult:
+      type: object
+      required: [inspection, overall_result, score, corrective_actions_suggested]
+      properties:
+        inspection: { $ref: '#/components/schemas/StructuredInspection' }
+        overall_result: { type: string, enum: [pass, minor, fail] }
+        score: { type: integer }
+        corrective_actions_suggested:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ReviewCheck:
+      type: object
+      required: [key, label, status]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        status: { type: string, enum: [pass, warn, fail, na] }
+        detail: { type: string }
+        target:
+          type: object
+          additionalProperties: true
+        blocks:
+          type: array
+          items: { type: string }
+
+    CorrectiveActionWrite:
+      type: object
+      required: [severity]
+      properties:
+        inspection_id: { type: string, nullable: true }
+        item_key: { type: string, nullable: true }
+        holding_id: { type: string, nullable: true }
+        province: { type: string, nullable: true }
+        severity: { type: string, enum: [observation, minor, major, critical] }
+        description: { type: string }
+        requirement: { type: string, nullable: true }
+        evidence: { type: string, nullable: true }
+        action_required: { type: string, nullable: true }
+        assigned_to: { type: string, nullable: true }
+        source_type: { type: string, nullable: true }
+        source_id: { type: string, nullable: true }
+        due_at: { type: string, nullable: true }
+
+    CorrectiveAction:
+      allOf:
+        - { $ref: '#/components/schemas/CorrectiveActionWrite' }
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string }
+            status: { type: string }
+            reinspection_visit_id: { type: string, nullable: true }
+            resolution: { type: string, nullable: true }
+            escalated_to: { type: string, nullable: true }
+            case_id: { type: string, nullable: true }
+            raised_at: { type: string, nullable: true }
+
+    CorrectiveActionContext:
+      type: object
+      required: [corrective_action, checks, source, related]
+      properties:
+        corrective_action: { $ref: '#/components/schemas/CorrectiveAction' }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewCheck' }
+        source:
+          type: object
+          additionalProperties: true
+        related:
+          type: object
+          additionalProperties: true
+
+    InspectionContext:
+      type: object
+      required: [inspection, checks, related, corrective_actions]
+      properties:
+        inspection: { $ref: '#/components/schemas/StructuredInspection' }
+        template: { $ref: '#/components/schemas/InspectionTemplate' }
+        responses:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistResponse' }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewCheck' }
+        related:
+          type: object
+          additionalProperties: true
+        corrective_actions:
+          type: array
+          items: { $ref: '#/components/schemas/CorrectiveAction' }
+        evidence:
+          type: array
+          items: { type: object, additionalProperties: true }
+
+    ComplianceAuditWrite:
+      type: object
+      required: [subject_id]
+      properties:
+        subject_id: { type: string }
+        subject_type: { type: string }
+        province: { type: string, nullable: true }
+        selection_basis: { type: string }
+        risk_reasons:
+          type: array
+          items: { type: string }
+        audit_scope: { type: string }
+        scheduled_at: { type: string, nullable: true }
+        assigned_to: { type: string, nullable: true }
+        due_at: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    Accreditation:
+      type: object
+      required: [subject_id, status]
+      properties:
+        subject_id: { type: string }
+        subject_type: { type: string, nullable: true }
+        status: { type: string, enum: [active, suspended, withdrawn] }
+        province: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+
+    ComplianceAudit:
+      allOf:
+        - { $ref: '#/components/schemas/ComplianceAuditWrite' }
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string }
+            status: { type: string, enum: [selected, scheduled, in_progress, conducted, closed, cancelled] }
+            finding_ids:
+              type: array
+              items: { type: string }
+            finding_count: { type: integer }
+            inspector_reg_no: { type: string, nullable: true }
+            conducted_at: { type: string, nullable: true }
+            outcome: { type: string, nullable: true }
+            risk_rating: { type: string, nullable: true }
+            summary: { type: string, nullable: true }
+            accreditation: { $ref: '#/components/schemas/Accreditation' }
+            allowed_actions:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+
+    ComplianceFindingWrite:
+      type: object
+      required: [severity]
+      properties:
+        severity: { type: string, enum: [observation, minor, major, critical] }
+        code: { type: string, nullable: true }
+        requirement: { type: string, nullable: true }
+        detail: { type: string, nullable: true }
+        evidence: { type: string, nullable: true }
+        due_at: { type: string, nullable: true }
+        action_required: { type: string, nullable: true }
+
+    ComplianceFinding:
+      allOf:
+        - { $ref: '#/components/schemas/ComplianceFindingWrite' }
+        - type: object
+          required: [id, audit_id, subject_id, status]
+          properties:
+            id: { type: string }
+            audit_id: { type: string }
+            subject_id: { type: string }
+            status: { type: string }
+            corrective_action_id: { type: string, nullable: true }
+            case_id: { type: string, nullable: true }
+            sanction_id: { type: string, nullable: true }
+            at: { type: string, nullable: true }
+
+    ComplianceAuditContext:
+      type: object
+      required: [audit, checks, findings, corrective_actions, related]
+      properties:
+        audit: { $ref: '#/components/schemas/ComplianceAudit' }
+        subject:
+          type: object
+          additionalProperties: true
+        accreditation: { $ref: '#/components/schemas/Accreditation' }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewCheck' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/ComplianceFinding' }
+        corrective_actions:
+          type: array
+          items: { $ref: '#/components/schemas/CorrectiveAction' }
+        cases:
+          type: array
+          items: { type: object, additionalProperties: true }
+        sanctions:
+          type: array
+          items: { type: object, additionalProperties: true }
+        related:
+          type: object
+          additionalProperties: true
+
+    CaseEvidence:
+      type: object
+      properties:
+        kind: { type: string, examples: [document] }
+        ref: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        by: { type: string, nullable: true }
+        at: { type: string, nullable: true }
+
+    EnforcementCaseWrite:
+      type: object
+      required: [subject_id]
+      properties:
+        subject_id: { type: string }
+        subject_type: { type: string, enum: [holding, keeper, establishment] }
+        province: { type: string, nullable: true }
+        reason: { type: string }
+        severity: { type: string, enum: [minor, major, critical] }
+        rung: { type: string, enum: [assisted, directed, enforced] }
+        source_type: { type: string, nullable: true, examples: [corrective_action] }
+        source_id: { type: string, nullable: true }
+        corrective_action_id: { type: string, nullable: true }
+        compliance_audit_id: { type: string, nullable: true }
+        source_audit_id: { type: string, nullable: true }
+        source_finding_id: { type: string, nullable: true }
+        legal_basis: { type: string, nullable: true }
+        evidence_summary: { type: string, nullable: true }
+        requested_outcome: { type: string, nullable: true }
+        assigned_to: { type: string, nullable: true }
+        due_at: { type: string, nullable: true }
+
+    Notice:
+      type: object
+      required: [id, case_id, status]
+      properties:
+        id: { type: string }
+        case_id: { type: string }
+        body: { type: string, nullable: true }
+        deadline_at: { type: string, nullable: true }
+        status: { type: string }
+
+    Infringement:
+      type: object
+      required: [id, case_id, status]
+      properties:
+        id: { type: string }
+        case_id: { type: string }
+        schedule_code: { type: string, nullable: true }
+        unit_amount: { type: number, nullable: true }
+        count: { type: integer, nullable: true }
+        amount: { type: number, nullable: true }
+        status: { type: string }
+
+    EnforcementCase:
+      allOf:
+        - { $ref: '#/components/schemas/EnforcementCaseWrite' }
+        - type: object
+          required: [id, rung, status]
+          properties:
+            id: { type: string }
+            status: { type: string, enum: [open, in_progress, appealed, closed, withdrawn] }
+            notice_ids:
+              type: array
+              items: { type: string }
+            infringement_ids:
+              type: array
+              items: { type: string }
+            evidence:
+              type: array
+              items: { $ref: '#/components/schemas/CaseEvidence' }
+            appeal:
+              type: object
+              nullable: true
+              additionalProperties: true
+            opened_by: { type: string, nullable: true }
+            opened_at: { type: string, nullable: true }
+            notices:
+              type: array
+              items: { $ref: '#/components/schemas/Notice' }
+            infringements:
+              type: array
+              items: { $ref: '#/components/schemas/Infringement' }
+            checks:
+              type: array
+              items: { $ref: '#/components/schemas/ReviewCheck' }
+            subject:
+              type: object
+              additionalProperties: true
+            source:
+              type: object
+              additionalProperties: true
+            related:
+              type: object
+              additionalProperties: true
+            href: { type: string, nullable: true }
+
+    SanctionLift:
+      type: object
+      properties:
+        reason: { type: string, nullable: true }
+        comment: { type: string, nullable: true }
+
+    SanctionHistoryEvent:
+      type: object
+      properties:
+        at: { type: string, nullable: true }
+        action: { type: string, nullable: true }
+        actor: { type: string, nullable: true }
+        role: { type: string, nullable: true }
+        comment: { type: string, nullable: true }
+
+    Sanction:
+      type: object
+      required: [id, subject_id, sanction_type, status]
+      properties:
+        id: { type: string }
+        subject_id: { type: string }
+        subject_type: { type: string, nullable: true }
+        subject_label: { type: string, nullable: true }
+        sanction_type: { type: string, examples: [suspension] }
+        summary: { type: string, nullable: true }
+        status: { type: string, enum: [active, lifted] }
+        public: { type: boolean }
+        case_id: { type: string, nullable: true }
+        effective_from: { type: string, nullable: true }
+        effective_until: { type: string, nullable: true }
+        published_by: { type: string, nullable: true }
+        published_at: { type: string, nullable: true }
+        lifted_by: { type: string, nullable: true }
+        lifted_at: { type: string, nullable: true }
+        lift_reason: { type: string, nullable: true }
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/SanctionHistoryEvent' }
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewCheck' }
+        actions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        subject:
+          type: object
+          additionalProperties: true
+        case:
+          oneOf:
+            - { $ref: '#/components/schemas/EnforcementCase' }
+            - { type: 'null' }
+        source:
+          type: object
+          additionalProperties: true
+        related:
+          type: object
+          additionalProperties: true
+        href: { type: string, nullable: true }
 
     Error:
       type: object
