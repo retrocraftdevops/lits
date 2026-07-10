@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS — Livestock Identification & Traceability System
-  version: 1.7.0-draft
+  version: 2.0.0
   summary: Vendor-neutral national livestock registry API (the source of truth).
   description: |
     LITS is the national registry of record for livestock **identity**, **movement**
@@ -24,6 +24,28 @@ info:
 
     Scope: cattle first (aligned with the National Cattle Identification Program),
     designed to extend to small stock.
+
+    ## Scopes (v2.0.0)
+
+    Authorisation is **key-bound**: every elevated endpoint is gated by a scope carried on the
+    operator's API key, granted by the registry operator (DVS) at key-issue time. A key issued with
+    no explicit scope list (the default) keeps full access so existing integrations never regress; a
+    restricted third-party key (e.g. an export integrator like METS) is issued with exactly the
+    scopes it has been authorised for. The server returns `403 insufficient_scope` when the key lacks
+    the required scope — a client cannot self-elevate.
+
+    Standard integrator endpoints (`/animals`, `/movements`, `/vaccinations`, `/certificates`,
+    `/zones`, `/campaigns`, `/disease-cases`, `/lab-results`) need no special scope. Elevated scopes:
+
+    | Scope | Endpoint |
+    |---|---|
+    | `movements:read` | `GET /animals/{id}/movements` |
+    | `holdings:read` | `GET /holdings/{id}` |
+    | `health:read` | `GET /animals/{id}/health` |
+    | `disease_cases:write` | `PATCH /disease-cases/{id}` |
+
+    A client MAY additionally send `X-LITS-Scope: elevated` to declare intent, but it is advisory —
+    the key's granted scopes are authoritative. Apply for elevated scope via the registry operator.
   contact:
     name: LITS registry operator (TBD — DVS / delegated operator)
   license:
@@ -52,6 +74,20 @@ tags:
     description: Vaccination and mandatory disease events.
   - name: zones
     description: Veterinary / FMD zone reference data (delta sync).
+  - name: holdings
+    description: |
+      Holding (premises) detail with geolocation and EUDR compliance flags. Elevated scope required
+      (`holdings:read`). Operators (e.g. METS) use this to retrieve holding coordinates for EUDR
+      Due Diligence Statements.
+  - name: disease
+    description: |
+      Disease case reporting and surveillance. Integrators (field apps, abattoir systems, FuroTrack)
+      POST suspect disease observations; the registry aggregates them for the national epidemiology
+      register. Classification and outcome updates require `disease_cases:write` scope.
+  - name: labs
+    description: |
+      Laboratory result submission. Accredited integrators (LIMS connectors, FuroTrack) POST
+      confirmed lab results; the registry auto-links positives to notifiable disease cases.
   - name: certificates
     description: Issue, fetch and revoke registry-signed certificates (movement permit, health, export).
   - name: verification
@@ -159,6 +195,126 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /animals/{national_id}/movements:
+    get:
+      tags: [animals]
+      operationId: getAnimalMovements
+      summary: Ordered movement history for one animal (elevated scope — movements:read)
+      description: |
+        Returns every movement step the animal has been part of, in chronological order.
+        Intended for export/traceability integrators (METS, EUDR systems) that need
+        the holding provenance chain before processing a carcass.
+
+        Requires the key scope `movements:read` (operator-granted).
+      parameters:
+        - name: national_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ordered movement steps.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnimalMovementHistory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Elevated scope not granted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /animals/{national_id}/health:
+    get:
+      tags: [animals]
+      operationId: getAnimalHealth
+      summary: Health status snapshot for one animal (elevated scope — health:read)
+      description: |
+        Returns the current veterinary zone, disease-free indicator (no active notifiable
+        disease cases in the last 60 days), most recent vaccination per disease, and latest
+        lab result. Used by METS emission modules (CBT, China dossier) at abattoir intake.
+
+        Requires the key scope `health:read` (operator-granted).
+      parameters:
+        - name: national_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Health status snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnimalHealthStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Elevated scope not granted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /authorized-keepers:
+    get:
+      tags: [keepers]
+      operationId: authorizedKeepers
+      summary: Keepers who currently authorize the calling integrator (the consented herd scope)
+      responses:
+        '200': { description: Keeper ids., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, keeper_ids: { type: array, items: { type: string } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /keepers/resolve:
+    post:
+      tags: [keepers]
+      operationId: resolveKeeper
+      summary: Find-or-claim a keeper by natural key
+      description: |
+        Resolves a person to the single registry keeper record, keyed on a sovereign natural
+        key (`national_id_no` and/or verified `msisdn`). Returns the existing keeper when the
+        person is already known — so an integrator never creates a second keeper for someone the
+        keeper app or another vendor already onboarded — otherwise creates and returns a new one.
+        `outcome` is `matched` or `created`. This is entity-level identity resolution, distinct
+        from the request-level `Idempotency-Key` (which only makes a single retried call safe).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KeeperResolve' }
+      responses:
+        '200':
+          description: The resolved keeper (matched or created).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Keeper' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /holdings/{holding_id}:
+    get:
+      tags: [holdings]
+      operationId: getHolding
+      summary: Holding detail with geolocation and EUDR compliance flags (elevated scope — holdings:read)
+      description: |
+        Returns premises detail including GPS coordinates and the EUDR flags
+        (`deforestation_free`, `legality_verified`) set by the DVS-authorised administrator.
+        Used by METS to assemble EUDR Due Diligence Statement geosets when live lookup
+        is preferred over frozen evidence snapshots.
+
+        Requires the key scope `holdings:read` (operator-granted).
+      parameters:
+        - name: holding_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Holding detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HoldingDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Elevated scope not granted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /movements:
     post:
       tags: [movements]
@@ -191,6 +347,164 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /movements/list:
+    get:
+      tags: [movements]
+      operationId: listMovements
+      summary: List movement permits by status and time window (for integrator poll / auto-sync)
+      description: |
+        Returns permits matching the given `status` that were last updated after `since`.
+        Integrators (e.g. FuroTrack) poll this endpoint to detect permits that have
+        transitioned to `approved` in the registry since their last sync, then push
+        the corresponding field data automatically rather than waiting for a manual trigger.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [lodged, approved, rejected, departed, completed, blocked] }
+        - name: since
+          in: query
+          required: false
+          description: ISO 8601 datetime — return permits updated after this timestamp.
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 100, maximum: 500 }
+      responses:
+        '200':
+          description: Movement permit list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count, movements]
+                properties:
+                  count: { type: integer }
+                  movements:
+                    type: array
+                    items: { $ref: '#/components/schemas/MovementAck' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /disease-cases:
+    post:
+      tags: [disease]
+      operationId: reportDiseaseCase
+      summary: Report a suspect or confirmed disease case (passive / active surveillance)
+      description: |
+        Any accredited integrator (field app, FuroTrack, abattoir LIMS) may submit a
+        disease observation. The registry records it at the submitted `classification`
+        (`suspect` is the correct initial value for field-entered observations). A
+        veterinary authority may reclassify via `PATCH /disease-cases/{id}`.
+
+        The standard idempotency guarantee applies: a repeated `Idempotency-Key` returns
+        the original record without creating a duplicate.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiseaseCaseReport' }
+            examples:
+              fmdSuspect:
+                $ref: '#/components/examples/DiseaseCaseReportExample'
+      responses:
+        '201':
+          description: Disease case recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiseaseCaseAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /disease-cases/{id}:
+    get:
+      tags: [disease]
+      operationId: getDiseaseCase
+      summary: Fetch a disease case (integrator read-back — own submissions only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Disease case detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiseaseCaseDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [disease]
+      operationId: updateDiseaseCase
+      summary: Update classification or outcome (elevated scope — disease_cases:write)
+      description: |
+        A veterinary authority reclassifies a case (e.g. `suspect` → `confirmed`) or
+        records an outcome (e.g. `under_treatment` → `recovered`). `vet_reg_no` is
+        required to establish authority accountability.
+
+        Requires the key scope `disease_cases:write` (operator-granted).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiseaseCaseUpdate' }
+      responses:
+        '200':
+          description: Updated case.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiseaseCaseDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Elevated scope not granted.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /lab-results:
+    post:
+      tags: [labs]
+      operationId: recordLabResult
+      summary: Submit a laboratory result for a notifiable disease test
+      description: |
+        Accredited LIMS connectors and field systems (FuroTrack) POST laboratory results
+        against a specific animal (`national_id`). The registry automatically links a
+        positive result for a notifiable disease to an existing open disease case (by
+        holding and disease) or creates a new `confirmed` case if none exists.
+
+        The standard idempotency guarantee applies.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabResultReport' }
+            examples:
+              fmdPositive:
+                $ref: '#/components/examples/LabResultReportExample'
+      responses:
+        '201':
+          description: Lab result recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabResultAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: Animal not found.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
   /vaccinations:
@@ -1129,7 +1443,7 @@ components:
         verify_url:
           type: string
           format: uri
-          description: Public QR target — resolves to GET /v1/verify/{token}.
+          description: Public QR target — resolves to GET /verify/{token}; clients may call GET /v1/verify/{token} for JSON status.
         pdf_url:
           type: string
           format: uri
@@ -1232,6 +1546,225 @@ components:
         revocation_list: { type: object }
         proof: { type: object, description: Anchor signature over the list. }
 
+    AnimalMovementHistory:
+      type: object
+      required: [national_id, movements]
+      properties:
+        national_id: { type: string }
+        movements:
+          type: array
+          description: Ordered movement steps, oldest first.
+          items:
+            type: object
+            required: [step_seq, holding_id, movement_ref, departed_at]
+            properties:
+              step_seq: { type: integer, description: Chronological order (1 = first recorded movement). }
+              holding_id: { type: string, description: Destination holding at this step. }
+              zone_code: { type: [string, 'null'] }
+              movement_ref: { type: string, description: Registry permit reference. }
+              purpose: { type: string }
+              departed_at: { type: [string, 'null'], format: date }
+              arrived_at: { type: [string, 'null'], format: date }
+
+    AnimalHealthStatus:
+      type: object
+      required: [national_id, disease_free, zone_code]
+      properties:
+        national_id: { type: string }
+        zone_code: { type: [string, 'null'], description: Current FMD zone of the holding the animal is on. }
+        disease_free:
+          type: boolean
+          description: True when no active notifiable disease case exists for this animal in the last 60 days.
+        fmd_vaccinated: { type: boolean }
+        last_test_result:
+          type: [string, 'null']
+          enum: [positive, negative, inconclusive, null]
+        last_test_date: { type: [string, 'null'], format: date }
+        last_test_disease: { type: [string, 'null'] }
+        vaccinations:
+          type: array
+          description: Most recent vaccination per disease.
+          items:
+            type: object
+            properties:
+              disease: { type: string }
+              vaccine_name: { type: [string, 'null'] }
+              administered_at: { type: string, format: date-time }
+              next_due_at: { type: [string, 'null'], format: date-time }
+        campaign_ids:
+          type: array
+          items: { type: string }
+          description: Active campaign IDs the animal is enrolled in.
+        snapshot_at: { type: string, format: date-time, description: Timestamp of this snapshot. }
+
+    HoldingDetail:
+      type: object
+      required: [holding_id, name, district]
+      properties:
+        holding_id: { type: string }
+        name: { type: string }
+        district: { type: string }
+        province: { type: [string, 'null'] }
+        keeper_id: { type: [string, 'null'] }
+        zone_code: { type: [string, 'null'] }
+        holding_type:
+          type: string
+          enum: [communal, commercial, small_scale, feedlot, abattoir]
+          default: commercial
+        lat: { type: [number, 'null'], format: double, description: GPS latitude (WGS-84). }
+        lng: { type: [number, 'null'], format: double, description: GPS longitude (WGS-84). }
+        accuracy_m: { type: [integer, 'null'], description: GPS accuracy radius in metres. }
+        deforestation_free:
+          type: boolean
+          default: false
+          description: |
+            Holding is verified deforestation-free per the operator's EUDR assessment.
+            Set by a DVS-authorised administrator via the admin control plane.
+        legality_verified:
+          type: boolean
+          default: false
+          description: |
+            Land-use legality verified per EUDR Article 2(1). Set by a DVS-authorised
+            administrator via the admin control plane.
+        eudr_verified_at:
+          type: [string, 'null']
+          format: date-time
+          description: Timestamp when EUDR flags were last set/confirmed by the competent authority.
+
+    DiseaseCaseReport:
+      type: object
+      required: [disease]
+      description: |
+        A disease observation submitted by an accredited integrator or field system.
+        Either `holding_id` or `national_id` (or both) must be supplied as the anchor.
+      properties:
+        disease:
+          type: string
+          description: |
+            Notifiable disease name, lower-case, using official WOAH vocabulary.
+            Examples: foot-and-mouth disease, anthrax, lumpy skin disease, brucellosis.
+        holding_id:
+          type: [string, 'null']
+          description: Holding where the case was observed. Mutually optional with national_id.
+        national_id:
+          type: [string, 'null']
+          description: Specific animal involved, if identified. Mutually optional with holding_id.
+        classification:
+          type: string
+          enum: [suspect, probable, confirmed, discarded]
+          default: suspect
+          description: Field entry should always be `suspect`; a veterinarian reclassifies.
+        detection_method:
+          type: string
+          enum: [passive, active, syndromic, abattoir, laboratory, post_mortem]
+          default: passive
+        clinical_signs:
+          type: array
+          items: { type: string }
+          description: Clinical signs observed (free-text, per WOAH Chapter 1.4 vocabulary).
+        onset_date:
+          type: [string, 'null']
+          format: date
+          description: Date clinical signs were first observed.
+        animals_at_risk:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Number of susceptible animals on the holding.
+        animals_affected:
+          type: integer
+          minimum: 0
+          default: 0
+        animals_dead:
+          type: integer
+          minimum: 0
+          default: 0
+        outcome:
+          type: string
+          enum: [under_treatment, recovered, died, slaughtered, destroyed, unknown]
+          default: unknown
+        lab_ref:
+          type: [string, 'null']
+          description: Laboratory sample reference, if already submitted.
+        vet_reg_no:
+          type: [string, 'null']
+          description: Reporting veterinarian's registration number.
+      additionalProperties: false
+
+    DiseaseCaseAck:
+      type: object
+      required: [id, reference, status, recorded_at]
+      properties:
+        id: { type: string }
+        reference: { type: string, description: Official disease case reference number. }
+        status: { type: string, const: received }
+        recorded_at: { type: string, format: date-time }
+
+    DiseaseCaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/DiseaseCaseReport'
+        - type: object
+          required: [id, reference, status, recorded_at]
+          properties:
+            id: { type: string }
+            reference: { type: string }
+            status: { type: string, enum: [open, closed, discarded] }
+            recorded_at: { type: string, format: date-time }
+            last_updated_at: { type: string, format: date-time }
+            updated_by: { type: [string, 'null'] }
+
+    DiseaseCaseUpdate:
+      type: object
+      required: [vet_reg_no]
+      description: Reclassification or outcome update. At least one of classification / outcome must be set.
+      properties:
+        classification:
+          type: [string, 'null']
+          enum: [suspect, probable, confirmed, discarded, null]
+        outcome:
+          type: [string, 'null']
+          enum: [under_treatment, recovered, died, slaughtered, destroyed, unknown, null]
+        vet_reg_no:
+          type: string
+          description: Veterinarian making the reclassification — required for accountability.
+        notes: { type: [string, 'null'] }
+      additionalProperties: false
+
+    LabResultReport:
+      type: object
+      required: [national_id, disease, test_method, result, sampled_at, resulted_at, lab_name]
+      properties:
+        national_id: { type: string }
+        sample_type:
+          type: string
+          examples: [serum, tissue, swab, whole_blood]
+        disease:
+          type: string
+          description: WOAH-vocabulary disease name.
+        test_method:
+          type: string
+          examples: [ELISA, PCR, virus_isolation, CFT, VNT]
+        result:
+          type: string
+          enum: [positive, negative, inconclusive]
+        lab_ref: { type: [string, 'null'], description: Laboratory internal sample / batch reference. }
+        sampled_at: { type: string, format: date-time }
+        resulted_at: { type: string, format: date-time }
+        lab_name: { type: string }
+        vet_reg_no: { type: [string, 'null'] }
+      additionalProperties: false
+
+    LabResultAck:
+      type: object
+      required: [id, status, recorded_at]
+      properties:
+        id: { type: string }
+        status: { type: string, const: received }
+        linked_case_id:
+          type: [string, 'null']
+          description: Disease case ID auto-linked when result is positive for a notifiable disease.
+        recorded_at: { type: string, format: date-time }
+
     Error:
       type: object
       required: [code, message]
@@ -1298,3 +1831,33 @@ components:
         destination: Bulawayo Municipal Abattoir
         valid_until: "2026-06-11"
         vet_endorsement: Dr N. Ncube (DVS Gwanda)
+
+    DiseaseCaseReportExample:
+      summary: FMD suspect case reported by FuroTrack field app
+      value:
+        disease: foot-and-mouth disease
+        holding_id: HLD-MAT-00891
+        national_id: ZW-CAT-0000123
+        classification: suspect
+        detection_method: passive
+        clinical_signs: [vesicles on tongue, lameness, hypersalivation]
+        onset_date: "2026-06-20"
+        animals_at_risk: 48
+        animals_affected: 6
+        animals_dead: 0
+        outcome: unknown
+        vet_reg_no: DVS-ZW-1042
+
+    LabResultReportExample:
+      summary: FMD PCR positive result from national lab
+      value:
+        national_id: ZW-CAT-0000123
+        sample_type: serum
+        disease: foot-and-mouth disease
+        test_method: PCR
+        result: positive
+        lab_ref: CVL-2026-04471
+        sampled_at: "2026-06-21T09:30:00Z"
+        resulted_at: "2026-06-22T14:00:00Z"
+        lab_name: Central Veterinary Laboratory, Harare
+        vet_reg_no: DVS-ZW-1042

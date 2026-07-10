@@ -4,6 +4,26 @@ All notable changes to the **LITS API contract** are recorded here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The contract is versioned in the URL
 path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
+## [2.0.0] — 2026-06-25
+
+Adds the elevated-scope read plane (for export integrators such as METS) and the disease/lab
+surveillance write plane (for field integrators such as FuroTrack). Authorisation is key-bound:
+elevated endpoints are gated by scopes carried on the operator's API key, granted by the registry
+operator — a client cannot self-elevate.
+
+- **Elevated reads** (operator-granted key scope): `GET /v1/animals/{id}/movements`
+  (`movements:read`), `GET /v1/animals/{id}/health` (`health:read`), `GET /v1/holdings/{id}`
+  (`holdings:read`, returns GPS + EUDR `deforestation_free`/`legality_verified` flags).
+- **Disease surveillance**: `POST /v1/disease-cases`, `GET /v1/disease-cases/{id}`,
+  `PATCH /v1/disease-cases/{id}` (`disease_cases:write`).
+- **Laboratory results**: `POST /v1/lab-results` — positives auto-link to an open disease case.
+- **Integrator poll**: `GET /v1/movements/list?status=&since=` for movement auto-sync.
+- New schemas: `AnimalMovementHistory`, `AnimalHealthStatus`, `HoldingDetail`,
+  `DiseaseCaseReport/Ack/Detail/Update`, `LabResultReport/Ack`.
+
+Preserves the dzinza-implementation-specific surface (`/keeper/scans`, `/seals/verify`,
+`/trust-list`) not present in the upstream open contract.
+
 ## [Unreleased]
 
 First public draft of the open LITS contract. Current surface:
