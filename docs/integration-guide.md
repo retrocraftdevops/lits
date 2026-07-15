@@ -120,8 +120,10 @@ clients — a client never creates a national zone (registry-operations.md §1).
 `POST /v1/movements` is **enforced**, not just recorded. The registry checks veterinary-zone
 rules and may answer:
 
-- `201` with `status: recorded` — accepted (watch `crosses_zone_boundary`).
-- `201` with `status: restricted` — recorded but flagged.
+- `201` with `status: lodged` — the request is recorded for authority review (watch
+  `crosses_zone_boundary`); this is **not** an approval or an issued permit.
+- Cross-zone requests remain `lodged` and are reviewed under the authority's configured
+  veterinary approval workflow.
 - `409` with an `Error` body (`code: zone_blocked`) — the movement crosses a blocked boundary
   and is **refused**. Surface this to the user as a hard stop, not a retryable error.
 
@@ -163,8 +165,9 @@ change. The FuroTrack reference uses these env vars (other vendors use their own
 
 States:
 
-1. **Not configured** — no URL/key/paths set → receipts recorded as `not_configured`, **no
-   calls made**. Identical to how NamLITS/SLITS/BAITS sit until their authorities issue keys.
+1. **Not configured** — no URL/key/paths set → the client keeps local traceability records and
+   marks the authority connection unavailable, but must not present, approve, complete, or print
+   a regulated movement as a national permit. No calls are made.
 2. **Dry-run** — `GOVT_SYNC_DRY_RUN=true` → receipts recorded as `dry_run`, **no calls made**;
    used to validate payload mapping end-to-end.
 3. **Live** — URL + key + verified paths set, dry-run off → real `POST`s; receipts carry the

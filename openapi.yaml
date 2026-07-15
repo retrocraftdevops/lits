@@ -1322,9 +1322,12 @@ components:
       type: object
       required: [permit_reference, status]
       properties:
-        permit_reference: { type: string, description: Authoritative registry permit reference. }
+        permit_reference: { type: string, description: Registry movement-request reference; it is not evidence of approval or issuance. }
         id: { type: string }
-        status: { type: string, enum: [recorded, restricted, blocked] }
+        status:
+          type: string
+          enum: [lodged, blocked]
+          description: A client lodges a request; only the authority control plane can later approve it.
         crosses_zone_boundary: { type: boolean }
         recorded_at: { type: string, format: date-time }
 
