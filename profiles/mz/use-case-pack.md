@@ -75,6 +75,40 @@ certificate integrity. **Destinations and the applicable zoning regime are TO-VE
 competent authority endorses) and the sanitised public verify endpoint are already in place; the MZ
 profile supplies the zones and destinations once confirmed.
 
+## 7. Accredited abattoir as an integrator node
+
+**Context.** Use case 4 brings the *informal* end of slaughter into the trace. The formal end is the
+mirror image and is currently just as invisible: a licensed, capacity-scaled plant receives animals
+from many holdings, and unless it reports, the registry loses the chain at precisely the point where
+the animal ceases to exist. A plant is also the densest reporting node available — one integration
+covers the terminal event for every animal that passes through it, rather than one keeper at a time.
+
+**MozLITS use.** An accredited abattoir registers as a holding of type `abattoir` and is issued its own
+integrator API key, so the registry attributes every submission to it. The plant's own system (an
+accredited farm-management platform or plant LIMS) then:
+
+- reconciles **arrivals** against lodged movement permits, so an animal arriving without a valid
+  permit — or across a standstill zone declared under use case 1 — is an exception the registry sees
+  rather than a gap it never learns about;
+- reports the **slaughter event**, setting the animal terminal at the `accredited` provenance grade
+  (contrast the `declared` grade a keeper self-report carries in use case 4);
+- records the **meat-inspection outcome** (passed / conditional / condemned) against the same
+  inspection task an `health_inspector` closes for informal kills, so both channels land in one queue.
+
+Nothing here is a new registry capability: it is the existing movement, slaughter-slip and
+meat-inspection surface, exercised by a high-volume integrator instead of a district officer. The
+distinction that matters is the **provenance grade**, which lets DINAV report formal and informal
+slaughter separately without maintaining two records.
+
+**Why it strengthens the pilot.** The corridor-control argument (use case 1) is about animals moving;
+the designation argument needs animals *arriving somewhere accountable*. A plant in a pilot district
+closes that loop, and gives the operator a second class of counterparty — commercial, contract-capable
+and motivated by provenance for its own brand and export reasons — alongside district administration.
+
+> **TO-VERIFY with DINAV:** the accreditation regime for abattoirs, which authority licenses them,
+> whether ante-mortem and post-mortem records are already statutorily required, and whether plant
+> reporting can be made a condition of licence independently of the wider designating instrument.
+
 ---
 
 ## Pilot scoping note
@@ -82,3 +116,8 @@ profile supplies the zones and destinations once confirmed.
 The natural first pilot is a **border district in Manica or Gaza** where the FMD corridor, communal
 dipping, restocking and informal slaughter all coincide — a single district exercising every use case
 above, producing the evidence base for national designation.
+
+Where such a district also contains an **accredited abattoir** (use case 7), prefer it: the plant
+supplies a commercial integrator, a dense terminal-event feed, and a counterparty whose own provenance
+and export interests align with the registry's — without which the pilot rests entirely on public
+administration capacity.
