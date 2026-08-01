@@ -1,0 +1,675 @@
+# SPDX-FileCopyrightText: 2026 The LITS steward
+# SPDX-License-Identifier: Apache-2.0
+#
+# LITS standards register — the machine-readable form of docs/standards-and-compliance.md.
+#
+# This repo is a published contract, so its register is part of the deliverable
+# rather than internal bookkeeping. It states what the STANDARD requires and
+# where the contract carries it. It deliberately does NOT carry codePaths into
+# the reference implementation: that lives in the operator's private repo, whose
+# own register (repo: dzinza) proves the implementation half.
+#
+# Validated by scripts/validate.py against standards/vocabulary.v1.json — the
+# same schema FuroField, FuroTrack and Dzinza pin, byte for byte.
+#
+# Statuses follow the vocabulary:
+#   implemented | partial | roadmap | not_applicable | external_assessment
+#
+# The "explicitly not planned" decisions from docs/standards-and-compliance.md §5
+# are recorded here as not_applicable WITH their justification, so they are never
+# re-flagged as gaps by a later audit.
+
+vocabularyVersion: "1.0.0"
+repo: lits
+
+standards:
+  # --- Animal health & traceability ---------------------------------------
+  - id: woah.tahc
+    family: sector
+    body: WOAH (World Organisation for Animal Health)
+    title: Terrestrial Animal Health Code
+    citationUrl: https://www.woah.org/en/what-we-do/standards/codes-and-manuals/terrestrial-code-online-access/
+    jurisdiction: [INTL]
+
+  - id: woah.pvs
+    family: sector
+    body: WOAH
+    title: PVS Pathway — evaluation of Performance of Veterinary Services
+    citationUrl: https://www.woah.org/en/what-we-offer/improving-veterinary-services/pvs-pathway/
+    jurisdiction: [INTL]
+
+  - id: eu.ahl.2016.429
+    family: sector
+    body: European Union
+    title: Regulation (EU) 2016/429 — Animal Health Law
+    version: "2016/429"
+    citationUrl: https://eur-lex.europa.eu/eli/reg/2016/429/oj
+    jurisdiction: [EU]
+
+  - id: eu.ocr.2017.625
+    family: sector
+    body: European Union
+    title: Regulation (EU) 2017/625 — Official Controls Regulation
+    version: "2017/625"
+    citationUrl: https://eur-lex.europa.eu/eli/reg/2017/625/oj
+    jurisdiction: [EU]
+
+  - id: eu.eudr.2023.1115
+    family: sector
+    body: European Union
+    title: Regulation (EU) 2023/1115 on deforestation-free products
+    version: "2023/1115"
+    effectiveDate: "2023-06-29"
+    citationUrl: https://eur-lex.europa.eu/eli/reg/2023/1115/oj
+    jurisdiction: [EU]
+    verifyBeforePrint: true
+
+  - id: au.ibar.lits
+    family: sector
+    body: AU-IBAR / IGAD ICPALD
+    title: Regional livestock identification & traceability coordination and guidelines
+    citationUrl: https://www.au-ibar.org/
+    jurisdiction: [AU, SADC]
+    verifyBeforePrint: true
+
+  - id: iso.11784-11785
+    family: data_interop
+    body: ISO
+    title: ISO 11784 / 11785 — Radio-frequency identification of animals
+    citationUrl: https://www.iso.org/standard/25881.html
+    jurisdiction: [INTL]
+
+  - id: icar.certification
+    family: data_interop
+    body: ICAR
+    title: ICAR device certification for animal identification
+    citationUrl: https://www.icar.org/index.php/certifications/
+    jurisdiction: [INTL]
+
+  # --- Access control & information security --------------------------------
+  - id: iso.27001.2022
+    family: security_privacy
+    body: ISO/IEC
+    title: ISO/IEC 27001:2022 — Information security management systems
+    version: "2022"
+    citationUrl: https://www.iso.org/standard/27001
+    jurisdiction: [INTL]
+
+  - id: incits.359.rbac
+    family: security_privacy
+    body: ANSI / INCITS
+    title: INCITS 359 — Role Based Access Control
+    citationUrl: https://www.nist.gov/publications/american-national-standard-information-technology-role-based-access-control
+    jurisdiction: [INTL]
+
+  # --- Data protection ------------------------------------------------------
+  - id: zw.cdpa
+    family: security_privacy
+    body: Republic of Zimbabwe
+    title: Cyber and Data Protection Act [Chapter 12:07]
+    citationUrl: https://www.potraz.gov.zw/
+    jurisdiction: [ZW]
+    verifyBeforePrint: true
+
+  - id: mw.dpa.2024
+    family: security_privacy
+    body: Republic of Malawi
+    title: Data Protection Act, 2024
+    version: "2024"
+    citationUrl: https://macra.mw/
+    jurisdiction: [MW]
+    verifyBeforePrint: true
+
+  # --- Contract & credential interop ---------------------------------------
+  - id: oai.openapi.31
+    family: data_interop
+    body: OpenAPI Initiative
+    title: OpenAPI Specification 3.1
+    version: "3.1"
+    citationUrl: https://spec.openapis.org/oas/v3.1.0
+    jurisdiction: [INTL]
+
+  - id: w3c.vc.2
+    family: data_interop
+    body: W3C
+    title: Verifiable Credentials Data Model 2.0
+    version: "2.0"
+    citationUrl: https://www.w3.org/TR/vc-data-model-2.0/
+    jurisdiction: [INTL]
+
+  - id: eu.eidas.seals
+    family: data_interop
+    body: European Union / ETSI
+    title: eIDAS electronic seals and the ETSI signature formats
+    citationUrl: https://eur-lex.europa.eu/eli/reg/2014/910/oj
+    jurisdiction: [EU]
+
+  - id: ietf.rfc7946
+    family: data_interop
+    body: IETF
+    title: RFC 7946 — The GeoJSON Format
+    effectiveDate: "2016-08-01"
+    citationUrl: https://www.rfc-editor.org/rfc/rfc7946
+    jurisdiction: [INTL]
+
+  # --- E&S ------------------------------------------------------------------
+  - id: worldbank.essa
+    family: esg_reporting
+    body: World Bank
+    title: Environmental and Social Systems Assessment (Program-for-Results)
+    citationUrl: https://www.worldbank.org/en/programs/program-for-results-financing
+    jurisdiction: [INTL]
+    verifyBeforePrint: true
+
+controls:
+  # =========================================================================
+  # 1. Animal-health & traceability standards
+  # =========================================================================
+  - id: woah.va-owns-traceability
+    standardId: woah.tahc
+    clauseRef: Ch. 4.1 / 4.2
+    paraphrase: >-
+      Identification and traceability are the Veterinary Authority's
+      responsibility: it approves identifiers, registers establishments, records
+      movements and controls the information system.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The contract models the tenant as the Competent Authority and confines
+      identifier authority to Veterinary Authority roles.
+
+  - id: woah.official-certification
+    standardId: woah.tahc
+    clauseRef: Ch. 5.1 / 5.2
+    paraphrase: >-
+      The act of certification is delegable and revocable, only an official or
+      authorised veterinarian may sign, and the Veterinary Authority remains
+      accountable for it.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Signing is confined to senior veterinary roles and export certificates use
+      a maker-checker with a differing final signer. Gating a signature on an
+      active accreditation record is specified but not yet required by the
+      contract.
+
+  - id: woah.paraprofessional-cadre
+    standardId: woah.tahc
+    clauseRef: Glossary — veterinary para-professional
+    paraphrase: >-
+      A supervised field cadre is distinct from the official inspector and does
+      not carry certification or enforcement authority.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+
+  - id: pvs.chain-of-command
+    standardId: woah.pvs
+    clauseRef: CC I-6.A
+    paraphrase: >-
+      Authority runs in a chain from the central service to the field, and each
+      officer acts only within their own jurisdiction.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Every list, read, search and surveillance operation is jurisdiction-scoped
+      and fails closed when the jurisdiction cannot be resolved.
+
+  - id: eu.authority-hierarchy
+    standardId: eu.ahl.2016.429
+    clauseRef: Art. 4 — competent authority
+    paraphrase: >-
+      A central competent authority delegates to regional and local units, and
+      the operator and keeper are distinct roles from the authority.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+
+  - id: ocr.border-controls
+    standardId: eu.ocr.2017.625
+    clauseRef: Art. 3(38)
+    paraphrase: >-
+      Official controls at a border post are performed at a designated place by
+      officers assigned to it.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      A border/station jurisdiction tier and a checkpoint role are specified for
+      the Mozambique FMD corridor; the contract does not yet express them.
+
+  - id: eudr.plot-geometry
+    standardId: eu.eudr.2023.1115
+    clauseRef: Art. 9(1)(d)
+    paraphrase: >-
+      An operator must hold the geolocation of every plot of production, to at
+      least six decimal places, and a perimeter polygon once a plot exceeds four
+      hectares.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    seamPin: eudr-geometry
+    notes: >-
+      Pinned to the identical rule FuroField applies to crop plots. The
+      thresholds are four hectares and six decimal places, geometry expressed as
+      GeoJSON. Drift on either side is a conformance failure.
+
+  - id: eudr.authored-by-authority
+    standardId: eu.eudr.2023.1115
+    clauseRef: Art. 4 / Art. 9
+    paraphrase: >-
+      Traceability data underpinning a due-diligence statement is authored by the
+      competent side; an economic operator reads it rather than editing it.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+
+  - id: regional.lits-alignment
+    standardId: au.ibar.lits
+    clauseRef: Regional LITS Guidelines
+    paraphrase: >-
+      National traceability systems align their identification and reporting
+      model to the regional guidelines so data means the same thing across a
+      border.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The contract's identification and movement model follows the regional
+      shape; a formal conformance mapping against the published guidelines has
+      not been produced.
+
+  - id: iso.device-identification
+    standardId: iso.11784-11785
+    clauseRef: ISO 11784 §4 — code structure
+    paraphrase: >-
+      An animal transponder carries a structured numeric code including a country
+      or manufacturer field, read over a defined air interface.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The device and tag registry carries manufacturer as reference data. Full
+      structural validation of a transponder code is not enforced by the
+      contract.
+
+  - id: icar.device-certification
+    standardId: icar.certification
+    clauseRef: ICAR device certification
+    paraphrase: >-
+      Only devices tested and certified by the recognised body may be presented
+      as conforming for official identification.
+    appliesTo: [lits-contract]
+    status: external_assessment
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Device certification is conferred by ICAR after testing. The registry
+      records a device's claimed certification as reference data and never
+      confers it.
+
+  # =========================================================================
+  # 2. Access control & information security
+  # =========================================================================
+  - id: iso.least-privilege
+    standardId: iso.27001.2022
+    clauseRef: A.5.15
+    paraphrase: >-
+      Access is granted through roles on a need-to-know basis, not by per-user
+      exceptions.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+
+  - id: incits.core-rbac
+    standardId: incits.359.rbac
+    clauseRef: Core RBAC
+    paraphrase: >-
+      Permissions attach to roles and users acquire them by holding a role; there
+      is no direct user-to-permission grant.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+
+  - id: incits.static-sod
+    standardId: incits.359.rbac
+    clauseRef: Static separation of duty
+    paraphrase: >-
+      Certain roles may not be held by the same person at the same time, and the
+      conflict is refused at the point of assignment.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Export certification uses a maker-checker requiring a differing signer.
+      Refusing a conflicting pair at provisioning time is specified and not yet
+      required by the contract.
+
+  - id: incits.dynamic-sod
+    standardId: incits.359.rbac
+    clauseRef: Dynamic separation of duty
+    paraphrase: >-
+      A person may hold two roles yet be barred from exercising both on the same
+      case.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The appeal path already bars prior actors. Barring the conductor of a
+      compliance audit from issuing enforcement on the same case is the
+      outstanding half.
+
+  - id: iso.access-review
+    standardId: iso.27001.2022
+    clauseRef: A.5.16 / A.5.18
+    paraphrase: >-
+      Access rights are managed through their whole life and reviewed on a
+      recurring cycle, with changes recorded.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Role and permission changes are visible and audited. A recurring
+      recertification cycle, and splitting the wildcard administrator from access
+      administration, remain open.
+
+  - id: iso.privileged-access
+    standardId: iso.27001.2022
+    clauseRef: A.8.2
+    paraphrase: >-
+      Privileged access is restricted, uniquely attributed, justified at the time
+      of use and logged.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Operator impersonation is uniquely attributed, audited and shown to the
+      tenant. A reason or ticket per call, a time-limited session and replay into
+      the tenant's own audit trail are outstanding.
+
+  - id: iso.platform-tenant-boundary
+    standardId: iso.27001.2022
+    clauseRef: A.5.18
+    paraphrase: >-
+      An administrative plane must not be reachable from a tenant plane, whatever
+      permissions a tenant role is granted.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+
+  - id: iso.tamper-evident-audit
+    standardId: iso.27001.2022
+    clauseRef: A.8.15
+    paraphrase: >-
+      Logs of access and privileged action must be kept in a form that reveals a
+      retroactive edit.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: platform-security
+    lastReviewed: "2026-08-01"
+
+  # =========================================================================
+  # 3. Data protection
+  # =========================================================================
+  - id: dp.controller-processor
+    standardId: zw.cdpa
+    clauseRef: Part III
+    paraphrase: >-
+      The party deciding why and how data is processed carries the controller's
+      duties; a party acting on its instruction is a processor.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The State is the controller and the operator the processor, stated in each
+      country profile's legal basis. Written per-tenant processing agreements and
+      a record of processing activities are documents, not contract surface.
+
+  - id: dp.subject-access
+    standardId: zw.cdpa
+    clauseRef: Data subject rights
+    paraphrase: >-
+      A person may obtain the data held about them and learn who has accessed it.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The keeper plane shows a keeper their own records with server-side
+      ownership checks. A subject-access export and a who-accessed-my-herd log
+      are not yet contract operations.
+
+  - id: dp.access-logging
+    standardId: mw.dpa.2024
+    clauseRef: Accountability
+    paraphrase: >-
+      Access to personal data must be recorded so that its use can be accounted
+      for afterwards.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+
+  - id: dp.breach-notification
+    standardId: mw.dpa.2024
+    clauseRef: Breach notification
+    paraphrase: >-
+      A personal-data breach must be notified to the regulator, and where the
+      risk is high to the people affected, within a stated period.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      A data-protection-officer persona and a notification workflow are
+      operator-side obligations; the contract carries no operation for them yet.
+
+  # =========================================================================
+  # 4. Contract & credential interoperability
+  # =========================================================================
+  - id: openapi.contract-validity
+    standardId: oai.openapi.31
+    clauseRef: OAS 3.1 §4
+    paraphrase: >-
+      An API description must be a valid document of the declared version with
+      every internal reference resolving.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    codePaths: ["scripts/validate.py", "openapi.yaml", "openapi-admin.yaml"]
+    testRefs: ["scripts/validate.py::validate_spec"]
+    owner: spec-steward
+    lastReviewed: "2026-08-01"
+
+  - id: contract.idempotent-writes
+    standardId: oai.openapi.31
+    clauseRef: OAS 3.1 §4.8 — operation
+    paraphrase: >-
+      A write that is retried with the same key must return the original result
+      rather than duplicating the effect.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    codePaths: ["openapi.yaml"]
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: spec-steward
+    lastReviewed: "2026-08-01"
+
+  - id: vc.credential-model
+    standardId: w3c.vc.2
+    clauseRef: VC Data Model 2.0 §4
+    paraphrase: >-
+      A verifiable credential names its issuer, its subject and its proof, so a
+      verifier can check it without contacting the issuer.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    codePaths: ["openapi.yaml"]
+    owner: spec-steward
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Certificates are signed and the public verification endpoint needs no
+      authentication. Full credential-model conformance is carried by RFC 0001.
+
+  - id: eidas.qualified-seal
+    standardId: eu.eidas.seals
+    clauseRef: eIDAS Art. 35–40
+    paraphrase: >-
+      A qualified electronic seal lets a foreign authority establish offline
+      which body sealed a document, when, and whether the seal was revoked.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    codePaths: ["rfcs/0001-qualified-e-seals.md"]
+    owner: spec-steward
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Specified in RFC 0001 as an additive wrapper around the existing detached
+      signature. Pending steering-committee ratification because it touches
+      certificate semantics.
+
+  - id: geojson.plot-geometry
+    standardId: ietf.rfc7946
+    clauseRef: §3.1.1 / §3.1.6
+    paraphrase: >-
+      A position is written longitude first, then latitude, and a polygon's ring
+      repeats its first position as its last.
+    appliesTo: [lits-contract]
+    status: partial
+    evidenceTier: derived
+    codePaths: ["openapi.yaml"]
+    owner: spec-steward
+    lastReviewed: "2026-08-01"
+    seamPin: eudr-geometry
+    notes: >-
+      Holding geolocation is carried in the contract; requiring GeoJSON shape and
+      the six-decimal precision rule at the schema level is the outstanding half
+      of the EUDR seam.
+
+  # =========================================================================
+  # 5. Environmental & social
+  # =========================================================================
+  - id: essa.attestation-ingest
+    standardId: worldbank.essa
+    clauseRef: ESSA — programme action plan
+    paraphrase: >-
+      A programme needs jurisdiction-level environmental and social compliance
+      figures even though the evidence is produced farm by farm.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: attested_import
+    codePaths: ["openapi.yaml"]
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    seamPin: es-attestation-category
+    notes: >-
+      Summary attestations are ingested from conformant production platforms with
+      a pinned category vocabulary. Row-level farm data never crosses; an
+      attestation is a claim at the platform tier and is never laundered into a
+      State approval.
+
+  # =========================================================================
+  # 6. Verified design decisions — recorded so they are never re-flagged
+  # =========================================================================
+  - id: nap.non-admin-sanction-withdrawal
+    standardId: incits.359.rbac
+    clauseRef: Core RBAC — permission assignment
+    paraphrase: >-
+      Withdrawing or appealing a sanction could in principle be delegated to a
+      non-administrative role.
+    appliesTo: [lits-contract]
+    status: not_applicable
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Verified design decision, not an oversight: withdrawal and appeal of a
+      sanction are senior-only by intent. Recorded here so a later audit does not
+      re-raise it as a gap.
+
+  - id: nap.operator-login-role
+    standardId: iso.27001.2022
+    clauseRef: A.5.15
+    paraphrase: >-
+      An abattoir or saleyard operator could in principle be given its own login
+      role in the registry.
+    appliesTo: [lits-contract]
+    status: not_applicable
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Verified design decision: the chokepoint commit is already permission-gated
+      through the integrator key, so a separate operator login would add an
+      identity surface without adding control.
+
+  - id: nap.lab-technician-login
+    standardId: iso.27001.2022
+    clauseRef: A.5.15
+    paraphrase: >-
+      A laboratory technician could in principle be a distinct authenticated
+      role.
+    appliesTo: [lits-contract]
+    status: not_applicable
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Verified design decision: the laboratory marker on a result is an audit
+      annotation on a submission, not an identity that logs in.

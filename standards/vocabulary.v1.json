@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://standards.furofield.com/vocabulary.v1.json",
+  "title": "Standards Control Vocabulary v1",
+  "description": "The shared, versioned vocabulary for standards registers across FuroField, FuroTrack, LITS and Dzinza. This file MUST be byte-identical in every repo that consumes it; each repo hashes it and fails CI on drift. Normative standard text is copyrighted and is never reproduced here or in a register: a control carries a clause identifier, our own paraphrase, and a citation URL.",
+  "vocabularyVersion": "1.0.0",
+  "type": "object",
+  "required": ["vocabularyVersion", "repo", "standards", "controls"],
+  "additionalProperties": false,
+  "properties": {
+    "vocabularyVersion": {
+      "description": "Must equal the vocabularyVersion of this schema. A mismatch is a conformance failure, not a warning.",
+      "const": "1.0.0"
+    },
+    "repo": {
+      "description": "Which codebase this register describes.",
+      "enum": ["furofield", "furotrack", "lits", "dzinza"]
+    },
+    "standards": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StandardEntry" }
+    },
+    "controls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ControlEntry" }
+    }
+  },
+  "$defs": {
+    "Family": {
+      "description": "The four standard families this program covers.",
+      "enum": ["sector", "security_privacy", "data_interop", "esg_reporting"]
+    },
+    "Status": {
+      "description": "Implementation state of a control. 'external_assessment' is the honest terminal state for anything only an accredited third party can confer (ISO 27001 certificate, SOC 2 report, GlobalG.A.P. certificate, phytosanitary certificate): it means the controls are in place and the engagement has not happened. Rendering it as 'certified' or 'compliant' is forbidden and is enforced by the honesty guard.",
+      "enum": ["implemented", "partial", "roadmap", "not_applicable", "external_assessment"]
+    },
+    "EvidenceTier": {
+      "description": "The provenance ladder already used across these products. A roll-up inherits the weakest tier present.",
+      "enum": ["derived", "attested_import", "declared"]
+    },
+    "AppliesTo": {
+      "description": "Product authority or deployment plane a control binds to. Kept explicit so one engine register can serve two authorities without crossing the product-isolation boundary.",
+      "enum": ["furofield", "furotrack", "lits-contract", "lits-instance", "platform"]
+    },
+    "StandardEntry": {
+      "type": "object",
+      "required": ["id", "family", "body", "title", "citationUrl"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Stable slug, unique across all four repos so a control can be traced across the seam. Lowercase, dots for hierarchy.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[.\\-][a-z0-9]+)*$"
+        },
+        "family": { "$ref": "#/$defs/Family" },
+        "body": {
+          "description": "The publishing body or legislator, e.g. 'ISO/IEC', 'WOAH', 'European Union', 'GS1', 'GLOBALG.A.P.'.",
+          "type": "string",
+          "minLength": 2
+        },
+        "title": { "type": "string", "minLength": 3 },
+        "version": {
+          "description": "Edition/version as published, e.g. '2022', 'IFA v6 Smart', '2.0'. Omit when the instrument is not versioned.",
+          "type": "string"
+        },
+        "effectiveDate": {
+          "description": "ISO 8601 date the cited edition took effect, where known.",
+          "type": "string",
+          "format": "date"
+        },
+        "citationUrl": {
+          "description": "Public URL for the instrument. Required: a standard with no citation cannot be verified before print.",
+          "type": "string",
+          "format": "uri"
+        },
+        "jurisdiction": {
+          "description": "ISO 3166-1 alpha-2 codes, or 'EU' / 'INTL' / 'SADC' for supranational instruments. Empty means globally applicable.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(EU|INTL|SADC|AU|[A-Z]{2})$" }
+        },
+        "verifyBeforePrint": {
+          "description": "True when a specific instrument number, date, tariff line or official's name in this entry has not yet been re-verified against a primary source. Customer-facing artefacts must flag, not assert, a true value.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "ControlEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "standardId",
+        "clauseRef",
+        "paraphrase",
+        "appliesTo",
+        "status",
+        "evidenceTier",
+        "owner",
+        "lastReviewed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Stable slug unique within the register.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[.\\-][a-z0-9]+)*$"
+        },
+        "standardId": {
+          "description": "Must resolve to a StandardEntry.id in the same register.",
+          "type": "string"
+        },
+        "clauseRef": {
+          "description": "The clause/control/article identifier as published, e.g. 'A.5.15', 'Art. 9', 'FV-Smart 32.03.01', 'Ch. 4.2'. Identifiers are facts, not protected expression.",
+          "type": "string",
+          "minLength": 1
+        },
+        "paraphrase": {
+          "description": "OUR OWN one-or-two-sentence statement of what the clause requires. Never the normative text: those are copyrighted. The copyright guard enforces this.",
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 600
+        },
+        "appliesTo": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/AppliesTo" }
+        },
+        "status": { "$ref": "#/$defs/Status" },
+        "evidenceTier": { "$ref": "#/$defs/EvidenceTier" },
+        "codePaths": {
+          "description": "Repo-relative paths implementing the control. Required non-empty when status is 'implemented' or 'partial'; the coverage gate also checks each path still exists.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "testRefs": {
+          "description": "Test identifiers proving the control: a vitest file+name, a pytest node id, or a conformance-suite case id. Required non-empty when status is 'implemented'.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "owner": {
+          "description": "Accountable role, not a person: e.g. 'platform-security', 'agronomy', 'registry-operations'.",
+          "type": "string",
+          "minLength": 2
+        },
+        "lastReviewed": {
+          "description": "ISO 8601 date this entry was last checked against the code.",
+          "type": "string",
+          "format": "date"
+        },
+        "notes": {
+          "description": "Free text. REQUIRED and substantive when status is 'not_applicable' (a bare N/A is rejected) or 'external_assessment' (name what the engagement is).",
+          "type": "string"
+        },
+        "seamPin": {
+          "description": "Names an interchange vocabulary this control pins across repos, e.g. 'es-attestation-category' or 'eudr-geometry'. The seam-parity test asserts both sides agree.",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "not_applicable" } }, "required": ["status"] },
+          "then": { "required": ["notes"], "properties": { "notes": { "minLength": 20 } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "external_assessment" } }, "required": ["status"] },
+          "then": { "required": ["notes"], "properties": { "notes": { "minLength": 20 } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "implemented" } }, "required": ["status"] },
+          "then": {
+            "required": ["codePaths", "testRefs"],
+            "properties": {
+              "codePaths": { "minItems": 1 },
+              "testRefs": { "minItems": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "partial" } }, "required": ["status"] },
+          "then": { "required": ["codePaths"], "properties": { "codePaths": { "minItems": 1 } } }
+        }
+      ]
+    }
+  }
+}
