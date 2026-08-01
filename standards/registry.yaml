@@ -64,6 +64,30 @@ standards:
     jurisdiction: [EU]
     verifyBeforePrint: true
 
+  # The two standards that describe what this contract actually IS. WOAH governs the
+  # animal-health authority and EUDR the deforestation gate; neither is about
+  # traceability-system design. ISO 22005 is, and Codex CAC/GL 60 is its
+  # SPS-defensible counterpart — what a trading partner cites when challenging a
+  # national system. Their absence was a real hole in this register.
+  - id: iso.22005
+    family: sector
+    body: ISO
+    title: ISO 22005 — Traceability in the feed and food chain
+    version: "2007"
+    citationUrl: https://www.iso.org/standard/36297.html
+    jurisdiction: [INTL]
+    verifyBeforePrint: true
+
+  - id: codex.cacgl60
+    family: sector
+    body: Codex Alimentarius Commission
+    title: >-
+      CAC/GL 60-2006 — Principles for traceability / product tracing as a tool
+      within a food inspection and certification system
+    version: "2006"
+    citationUrl: https://www.fao.org/fao-who-codexalimentarius/codex-texts/guidelines/en/
+    jurisdiction: [INTL]
+
   - id: au.ibar.lits
     family: sector
     body: AU-IBAR / IGAD ICPALD
@@ -265,11 +289,18 @@ controls:
       least six decimal places, and a perimeter polygon once a plot exceeds four
       hectares.
     appliesTo: [lits-contract]
-    status: implemented
+    status: partial
     evidenceTier: derived
     testRefs: ["conformance/README.md#live-conformance"]
     owner: registry-governance
+    seamPin: eudr-geometry
     lastReviewed: "2026-08-01"
+    notes: >-
+      Corrected from implemented on 2026-08-01. The contract expresses the two
+      thresholds, but the implementation assesses them advisorily rather than
+      enforcing them, and no reference instance holds coordinates at six decimal
+      places. Contract ahead of implementation is the divergence the seam pin
+      exists to catch, so the claim is brought down to match what is true.
     seamPin: eudr-geometry
     notes: >-
       Pinned to the identical rule FuroField applies to crop plots. The
@@ -673,3 +704,67 @@ controls:
     notes: >-
       Verified design decision: the laboratory marker on a result is an audit
       annotation on a submission, not an identity that logs in.
+
+  - id: iso22005.traceable-unit
+    standardId: iso.22005
+    clauseRef: Cl. 4.4 — traceable unit
+    paraphrase: >-
+      The system defines the unit it traces and gives it an identifier that stays
+      stable for the unit's whole life.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The contract mints a national identifier per animal and never re-issues it;
+      retagging binds a new visual tag to the same unit.
+
+  - id: iso22005.one-up-one-down
+    standardId: iso.22005
+    clauseRef: Cl. 4.6 — information on the flow of product
+    paraphrase: >-
+      For every traceable unit the system can name the step it came from and the
+      step it went to.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Movement permits carry origin and destination; arrival reconciliation matches
+      the animals scanned against the manifest, so a step cannot close on assertion.
+
+  - id: iso22005.system-verification
+    standardId: iso.22005
+    clauseRef: Cl. 5.6 / 6 — internal audit and review of the traceability system
+    paraphrase: >-
+      The traceability system is itself tested on a cycle — a unit is selected and
+      the chain reconstructed within a stated time — and the result recorded.
+    appliesTo: [lits-contract]
+    status: roadmap
+    evidenceTier: declared
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      The capability a traceability system is judged on at audit, and the one most
+      often missing. The contract does not yet express a traceability exercise.
+
+  - id: codex.tracing-supports-certification
+    standardId: codex.cacgl60
+    clauseRef: Principles 4-7
+    paraphrase: >-
+      Product tracing serves the inspection and certification system: practicable,
+      verifiable by the authority, and applied without discriminating between
+      operators.
+    appliesTo: [lits-contract]
+    status: implemented
+    evidenceTier: derived
+    testRefs: ["conformance/README.md#live-conformance"]
+    owner: registry-governance
+    lastReviewed: "2026-08-01"
+    notes: >-
+      Certification decisions read the traceability record rather than a submitted
+      claim, and the same rules run for every registrant.
