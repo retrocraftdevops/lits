@@ -42,26 +42,54 @@ other repo's cross-repo check — which is the point.
 
 ## Verify
 
-**The script is not in this repository.** It lives in the FuroField repo and is written to be run
-from any of the four — it locates its siblings relative to the parent directory. Invoke it by path:
+Two checks, and they answer different questions. Run both before changing a pin.
+
+### This repo's own gate — runs in CI
 
 ```bash
-~/projects/FuroField/scripts/check-standards-parity.sh   # hashes the vocabulary + compares pinned seams across repos
+python3 scripts/check-standards-parity.py                 # in CI; no dependencies, no siblings needed
+python3 scripts/check-standards-parity.py --require-siblings   # locally, when adding a seam pin
 ```
 
-This line previously read `scripts/check-standards-parity.sh`, as though the file were here.
-`scripts/` in this repo contains only `validate.py`, so the command could not run and the section
-promised a check nobody could perform. FuroTrack's copy of this README already cites the absolute
-path; this one now matches it.
+Wired into [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) alongside
+`scripts/validate.py`. It hashes this repo's `vocabulary.v1.json` against a canonical digest
+recorded in the script, checks the structure the rest of the gate depends on, ties
+`registry.yaml` to it, and — **when sibling checkouts happen to be present** — compares their
+copies and checks each `seamPin` is named on at least one other side.
 
-Last run 2026-08-16 from a clean tree: **PASS** — vocabulary hash
+A CI runner has only this repository, so there the run reports **`PASS (SELF-CHECK ONLY)`** and
+lists every sibling as `NOT COMPARED`. That wording is deliberate: an absent repo must never read
+as an agreeing repo. `--require-siblings` turns absence into a failure for the local case where
+you expect all four.
+
+**Its honest limit:** a digest recorded in the same repo as the file it pins can be updated in the
+same edit. It catches the *silent* drift — a reformat, an editor rewriting the file, a hand-merged
+conflict — while a *deliberate* change is caught by the version-bump rule above, which check 3
+ties to the register and the four-way check below ties to the siblings.
+
+### The four-way check — lives in FuroField, reads all four
+
+```bash
+~/projects/FuroField/scripts/check-standards-parity.sh   # hashes the vocabulary + compares pinned SEAM VALUES across repos
+```
+
+It is not in this repository, and deliberately not copied into it: a fourth copy of the four-repo
+topology is the exact drift this program exists to detect. It stays authoritative for the per-seam
+**value** assertions (the EUDR hectare threshold and decimal precision, the E&S category enum) that
+the gate above does not attempt. It is written to run from any of the four repos.
+
+> The path above was once written `scripts/check-standards-parity.sh`, as though the file were
+> here, which made it unrunnable from this repo and made the check look absent. It is not absent.
+
+### Last run
+
+2026-08-16 from a clean tree, **both green**. The four-way script: vocabulary hash
 `737b5e9f…44e572a4` identical across FuroField, furotrack, lits and dzinza; both pinned seams
-(`eudr-geometry`, `es-attestation-category`) present on both sides; declared version `1.0.0`
-everywhere. The check was proved capable of failing in the same session by mutating a **copy** of
-this repo's `standards/vocabulary.v1.json` and re-running against it: it named the drifted file,
-printed both hashes, and exited 1.
+present on both sides; declared version `1.0.0` everywhere. This repo's gate: the same digest,
+4 sibling copies compared and identical, both seam pins named by FuroField, the engine and Dzinza.
 
-**What is still true, and is a real gap:** this repository's own CI
-([`.github/workflows/validate.yml`](../.github/workflows/validate.yml)) has **no parity step**, so
-nothing here detects drift automatically — see [`docs/roadmap.md`](../docs/roadmap.md) §"Follow-up
-still open".
+Both were proved capable of failing before being trusted, against **copies** — nothing in this
+repository was mutated. For this repo's gate that was five separate plants in a detached worktree
+(drifted own vocabulary, deleted `$defs.Status.enum`, a drifted sibling copy, a seam pin no
+sibling carries, and `--require-siblings` with none present); each exited 1 naming the file or the
+pin, and each restored to exit 0.

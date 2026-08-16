@@ -19,7 +19,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×2); 3 follow-ups open |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
@@ -84,9 +84,12 @@ Three checks added across two rounds, each proven red-then-green before being tr
 
 ### Follow-up still open
 
-Three things exposed but **not** fixed. None blocks the next step, and all should be resolved
-before the contract is presented as ratifiable. (A fourth — examples never checked against their
-schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
+Three things were exposed here; **one remains open**. None blocks the next step, and all should be
+resolved before the contract is presented as ratifiable. (A fourth — examples never checked against
+their schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
+Item 2 was closed on 2026-08-16 by Rodrick's decision that this repo owns a parity step; the entry
+is kept rather than deleted, because the reasoning behind rejecting a wrapper and rejecting a
+vendored copy is what stops the question being reopened.
 
 1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
@@ -117,21 +120,43 @@ schemas — was closed by the second round of [gate hardening](#0b-gate-hardenin
    mutated and the script re-run against it: it named `lits/standards/vocabulary.v1.json`, printed
    expected and found hashes, and exited 1. Nothing in this repository was modified to do it.
 
-   **The residual gap is narrower than this entry claimed, and still real:** detection lives in a
-   sibling repo's CI, not in ours, so a drift introduced here is caught only when *FuroField's*
-   pipeline runs. That is a single point of failure for a four-repo obligation, and it is worth
-   knowing that FuroField's CI has its own availability history. It matters more from step 2
-   onward, which introduces five new pins (see
-   [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)).
+   **The residual gap was narrower than this entry claimed, and it is now CLOSED.** Detection had
+   lived only in a sibling repo's CI, so a drift introduced here was caught only when *FuroField's*
+   pipeline ran — a single point of failure for a four-repo obligation, and one whose availability
+   history is not spotless. It mattered more from step 2 onward, which introduces five new pins
+   (see [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)).
 
-   > **UNRESOLVED — needs Rodrick.** *Should this repository get its own CI parity step?* The
-   > options are a thin wrapper invoking the FuroField script (needs both checkouts on the runner,
-   > which a single-repo CI checkout does not have), vendoring a copy (four copies to keep in step,
-   > the exact drift the script exists to detect), or accepting that detection is centralised in
-   > FuroField and saying so plainly here. This is a cross-repo ownership decision, not an
-   > editorial one, and it is deliberately not taken by an agent. **Meanwhile the obligation is
-   > enforced — just not from here** — so run the script by hand from any of the four repos when
-   > adding a pin.
+   **Decided by Rodrick, 2026-08-16: yes — this repository owns a parity step of its own.**
+   Implemented as `scripts/check-standards-parity.py`, wired into
+   [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) alongside
+   `scripts/validate.py`.
+
+   Of the three options in the question, the answer was none of them exactly. A **wrapper** needs
+   both checkouts on a runner that has one; **vendoring** the FuroField script makes a fourth copy
+   of the four-repo topology, which is the drift the program exists to detect; and **centralising**
+   was the gap itself. What landed instead splits the work by what each side can actually know:
+
+   - **Here:** the checks this repo can make alone — its `vocabulary.v1.json` against a canonical
+     digest recorded in the script, the vocabulary structure `scripts/validate.py` indexes into,
+     and `registry.yaml`'s declared repo and version. Sibling checkouts are compared **when they
+     happen to be present**, and every one that is not is printed as `NOT COMPARED` and named in
+     the summary line, which reads `PASS (SELF-CHECK ONLY)`. An absent sibling never reads as an
+     agreeing sibling. `--require-siblings` makes absence a failure for local use.
+   - **There:** `~/projects/FuroField/scripts/check-standards-parity.sh` stays authoritative for
+     the per-seam **value** assertions across all four (the EUDR threshold and precision, the E&S
+     category enum). Not duplicated here.
+
+   Proven capable of failing before being trusted, in a detached worktree against copies — nothing
+   in this repository was mutated: a drifted own vocabulary, a deleted `$defs.Status.enum`, a
+   drifted sibling copy, a seam pin no sibling carries, and `--require-siblings` with none present
+   each exited 1 naming the file or the pin; each restored to exit 0.
+
+   **Stated limit, so it is not discovered later.** A digest recorded in the same repository as the
+   file it pins can be updated in the same edit, and no in-repo tripwire can prevent that. It
+   catches the *silent* drift — a reformat, an editor rewrite, a hand-merged conflict. A
+   *deliberate* change is caught by the version-bump rule instead: bumping `vocabularyVersion` is
+   tied to the register by this gate and to the siblings by the four-way script, so it cannot land
+   in one repo alone and pass anywhere.
 3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
    genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
    (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
@@ -358,16 +383,23 @@ same change; anything that invalidates an existing register is a major version w
 treatment. Editing it in one repo alone fails that repo's parity test and every other repo's
 cross-repo check, which is the design working, not a problem to route around.
 
-⚠️ **Caveat, per step 0's open follow-up — corrected 2026-08-16.** The parity check **does** have a
-runnable script and it **does** read this repo: `~/projects/FuroField/scripts/check-standards-parity.sh`,
-written to run from any of the four repos. What this repo lacks is a **CI step** invoking it, so
-drift introduced here is detected only when FuroField's pipeline runs. So each of the five pins
-must still be added to the sibling registers in the same change window — but verifying it is now a
-command rather than an inspection:
+**How to verify a pin — 2026-08-16, both halves now runnable.** Each of the five pins must still be
+added to the sibling registers in the same change window, but checking it is a command rather than
+an inspection. Run **both**; they answer different questions:
 
 ```bash
-~/projects/FuroField/scripts/check-standards-parity.sh    # exit 0 = the four agree; exit 1 names the drift
+python3 scripts/check-standards-parity.py --require-siblings   # this repo's gate; also runs in CI
+~/projects/FuroField/scripts/check-standards-parity.sh         # the four-way seam-VALUE comparison
 ```
 
-Run it after adding a pin, on both sides, and read the exit code. Whether this repo should own a CI
-step of its own is escalated in the follow-up above.
+The first is this repository's own gate ([follow-up 2](#follow-up-still-open)), added after Rodrick
+decided this repo should own one. In CI it runs with no siblings and says so — `PASS (SELF-CHECK
+ONLY)`, every sibling listed as `NOT COMPARED`. Locally, `--require-siblings` makes a missing
+checkout a failure, which is what you want at the moment you are adding a pin: it will not let an
+uncheckable sibling pass as an agreeing one. It fails if a pin this register declares is named by
+none of the siblings present — a pin on one side only is a claim, not a pin.
+
+The second stays authoritative for the per-seam **values** (the EUDR threshold and precision, the
+E&S category enum), which the first deliberately does not duplicate.
+
+Read the exit code of each: 0 = agreement as far as that run could see; 1 names the drift.

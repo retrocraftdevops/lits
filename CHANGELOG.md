@@ -152,6 +152,34 @@ since been taught both — see *Changed* below.
     `additionalProperties` violation, a wrong type, a missing required property nested behind a
     `$ref`, a bad enum value, and an unmapped example each produced `FAIL`/exit 1, and each
     restored to green. All five existing examples conform, so the check landed green.
+- **This repository now owns a standards-vocabulary parity step**
+  (`scripts/check-standards-parity.py`, wired into `.github/workflows/validate.yml` beside
+  `scripts/validate.py`). `standards/README.md` has always claimed that each of the four repos
+  sharing `standards/vocabulary.v1.json` "hashes it and fails CI on drift"; for this repo that
+  was **not true** — detection lived only in FuroField's pipeline, a single point of failure for
+  a four-repo obligation. No contract file changes; this is gate-only.
+  - **It works with this repo checked out alone**, because a standards repo cannot assume its
+    siblings are on the runner. Standalone it verifies `vocabulary.v1.json` against a canonical
+    digest recorded in the script, validates the structure `scripts/validate.py` indexes into
+    (a missing `$defs.Status.enum` was a `KeyError` traceback rather than a diagnosis), and
+    checks `registry.yaml` declares this repo and the pinned version.
+  - **An absent sibling is never reported as an agreeing sibling.** Present checkouts are
+    compared byte for byte and each `seamPin` is checked to be named on at least one other side;
+    absent ones print `NOT COMPARED` and the summary reads `PASS (SELF-CHECK ONLY) … shows
+    NOTHING about cross-repo agreement`. `--require-siblings` makes absence a failure for local
+    use when adding a pin.
+  - **It does not duplicate `~/projects/FuroField/scripts/check-standards-parity.sh`**, which
+    remains authoritative for the per-seam *value* assertions across all four repos. A fourth
+    copy of the four-repo topology is the drift the program exists to detect.
+  - Proven capable of failing before being relied on, against copies in a detached worktree —
+    nothing in this repository was mutated. A drifted own vocabulary, a deleted
+    `$defs.Status.enum`, a drifted sibling copy, a seam pin no sibling carries, and
+    `--require-siblings` with none present each produced `FAIL`/exit 1 naming the file or the
+    pin; each restored to exit 0.
+  - **Stated limit:** a digest recorded beside the file it pins can be updated in the same edit.
+    It catches silent drift (a reformat, an editor rewrite, a hand-merged conflict); a deliberate
+    change is caught instead by the version-bump rule, which this gate ties to the register and
+    the four-way script ties to the siblings.
 
 ---
 
