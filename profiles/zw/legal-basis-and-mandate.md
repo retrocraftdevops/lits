@@ -158,6 +158,20 @@ to give because stewardship of the *standard* is separate from operation of the 
       data-continuity / escrow terms.
 - [ ] POTRAZ registration of the controller/processor relationship.
 - [ ] Alignment of mandatory scope with the National Cattle Identification Program timeline.
+- [ ] **Which disease-response milestones this territory's law requires, and how each is
+      derived.** Owed by this profile since the contract gained `QuarantineOrder.milestones` at
+      `2.2.0`. The contract deliberately carries **no jurisdiction's arithmetic** (RFC 0003 §3):
+      it publishes a date and what the date means (`day_zero`, `slaughter_window_opens`,
+      `slaughter_window_closes`, `review_due`, `lift_eligible`), and the registry computes those
+      dates under *this* profile. Until this item is answered, a ZW registry has no stated basis
+      for the numbers it emits. **A milestone this profile needs but the vocabulary lacks is the
+      trigger to extend the vocabulary once, for everyone** — never to add a ZW-only field.
+- [ ] **Whether a verbally-declared order is enforceable before written confirmation**, and how
+      long the confirmation may lag. The contract carries `declared_verbally_at` and
+      `confirmed_in_writing_at` and decides nothing (RFC 0003 §7); this profile decides, and its
+      registry refuses to activate on a verbal declaration alone if the answer is no. Raised
+      against **Gazette 54972**, which is **UNVERIFIED** — it must be read and confirmed, or
+      replaced, before anything relies on it.
 
 ---
 

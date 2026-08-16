@@ -88,6 +88,16 @@ movement permits and dip records is far easier to designate than a proposal.
 - [ ] The applicable data-protection statute and the controller/processor registration.
 - [ ] INCM USSD short code + DINAV hotline (shipped values are placeholders).
 - [ ] Export destinations and the SADC/OIE zoning MozLITS must certify against.
+- [ ] **Which disease-response milestones Mozambican law requires, and how each is derived.**
+      Owed by this profile since the contract gained `QuarantineOrder.milestones` at `2.2.0`. The
+      contract carries **no jurisdiction's arithmetic** (RFC 0003 §3) — it publishes a date and
+      what the date means, and the registry computes it under *this* profile. The periods are not
+      assumed to match Zimbabwe's; that they may differ is the reason the contract refuses to
+      carry either.
+- [ ] **Whether a verbally-declared order is enforceable before written confirmation**, and how
+      long the confirmation may lag (RFC 0003 §7). Answered per territory, and the answer here is
+      independent of the ZW one — this profile's régulo/secretário attestation chain (§3) may
+      bear on how a verbal order is witnessed.
 
 ---
 
