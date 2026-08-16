@@ -4,6 +4,59 @@ All notable changes to the **LITS API contract** are recorded here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The contract is versioned in the URL
 path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
+## [Unreleased]
+
+### Fixed
+
+**The specs asserted three seam pins that no register on any side declares.** Six descriptions
+across both planes read *"Pinned vocabulary — seam pin `order-status`"* (likewise
+`permit-condition-codes` and `trace-flag-codes`). `standards/registry.yaml` declares neither —
+only `eudr-geometry` and `es-attestation-category` — and it abstains **on purpose**, because
+`scripts/check-standards-parity.py` check 5 refuses a pin no sibling names: *"a pin that exists on
+one side only is not a pin; it is a claim"* ([docs/roadmap.md](./docs/roadmap.md)). `2.2.0`'s own
+"Not shipped, and owed" note says exactly this. So the register and the changelog were the honest
+halves, and **the published contract was the one overclaiming** — an integrator reading it saw a
+cross-repo agreement that does not exist.
+
+Re-verified before changing anything, with the parity gate's own matcher rather than a hand grep:
+all four sibling checkouts are present, and **none** declares any of the three in a standards
+artifact. The only occurrences anywhere are a `name="order-status"` radio button in FuroTrack's
+dashboard (the near-miss recorded at `2.2.0`) and a FuroTech planning document listing the pins as
+*owed*. Declaring them here alone would have been the same defect facing the other way, so the
+prose is downgraded instead: each site now reads **proposed**, states that no register declares it
+yet, and names what would make it a pin — this register and the FuroTrack and Dzinza registers
+declaring it in one change window. No schema, enum, field or status code changed.
+
+**No version bump is taken here, and that is a steward decision, not an omission.**
+[CONTRIBUTING.md](./CONTRIBUTING.md)'s change policy is written in terms of schema semantics
+(fields, enum values, required-ness, status codes); none of those moved, so the policy does not
+call for one. The open question is the *artifact-integrity* one it does not cover — whether
+correcting published `2.2.0` prose in place should still carry a `2.2.1`, so that two documents
+never share a version string. Flagged for the steward rather than answered.
+
+### Added
+
+**A gate that reads spec prose — nothing ever had.** `scripts/validate.py` check 8 requires every
+seam pin the specs **assert** to be declared in `standards/registry.yaml`. That closes the first
+link of a two-link chain and deliberately duplicates neither half:
+
+    spec prose  ->  standards/registry.yaml     (validate.py, standalone)
+    registry    ->  the sibling registers       (check-standards-parity.py, check 5)
+
+A spec may assert a pin only if this register declares it; this register may declare it only if a
+sibling does. Marking a pin `**proposed**` is a legitimate downgrade rather than an escape hatch —
+it changes what the integrator reads, which was the entire defect — and the reverse is checked
+too, so a pin that later becomes real cannot leave the prose calling it proposed.
+
+> **A hole in the first draft of that gate, worth recording.** It required literal spaces
+> (`seam pin \`x\``) and so matched **nothing** at `openapi.yaml:1714` and
+> `openapi-admin.yaml:1729`, where the wrapped YAML block scalar splits the phrase across a line.
+> Two of the six sites it existed to police were invisible to it and it reported a confident green
+> over them. It was caught only because the check prints its count and `4` disagreed with a hand
+> count of `6`. The pattern now spans whitespace, and a second net reconciles every bare `seam pin`
+> mention against the named ones, so a phrase this gate cannot parse fails loudly instead of
+> passing silently.
+
 ## [2.2.0] — 2026-08-16
 
 ### Added

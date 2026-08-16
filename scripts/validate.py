@@ -17,12 +17,14 @@ Checks:
   5. Every examples/*.json file parses.
   6. Every examples/*.json file conforms to the schema it illustrates.
   7. The standards register conforms to the shared control vocabulary.
-  8. Every open, comment-capable artifact carries an SPDX licence header.
+  8. Every seam pin the published specs ASSERT is declared in that register.
+  9. Every open, comment-capable artifact carries an SPDX licence header.
 """
 from __future__ import annotations
 
 import glob
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -476,6 +478,135 @@ def validate_standards_register(yaml_mod) -> None:
     )
 
 
+# The one phrase in the published specs that asserts a CROSS-REPO agreement.
+#
+# `\s+`, not " ", between every token: these descriptions are wrapped YAML block
+# scalars, so the phrase and its backticked name are routinely split across a
+# line with the next line's indentation between them. The first draft of this
+# gate required literal spaces and therefore MATCHED NOTHING at openapi.yaml:1714
+# and openapi-admin.yaml:1729 — two of the six sites it existed to police were
+# invisible to it, and it reported a confident green over them. It was caught by
+# the printed count (4) disagreeing with a hand count (6), which is the whole
+# reason the count is printed. SEAM_PIN_MENTION below now makes that class of
+# miss loud instead of silent.
+SEAM_PIN_PHRASE = re.compile(r"seam\s+pin\s+`([a-z0-9][a-z0-9._-]*)`")
+
+# Every mention of the phrase, named or not. Reconciled against the strict
+# pattern so a mention this gate cannot parse is REPORTED rather than skipped:
+# an unchecked assertion and an absent one look identical in a pass line.
+SEAM_PIN_MENTION = re.compile(r"seam\s+pin")
+
+# The closed set of markers that downgrade that assertion to a proposal. It is
+# ONE word on purpose: a gate with a generous escape vocabulary is a gate that is
+# always satisfiable by adjective. Markdown emphasis around it is tolerated
+# (`**proposed**`), because that is how the rest of these descriptions read;
+# nothing else is.
+PROPOSAL_MARKER = "proposed"
+_MARKER_WINDOW = 40
+
+
+def _is_proposed(text: str, start: int) -> bool:
+    """True when the seam-pin phrase at `start` is explicitly marked a PROPOSAL."""
+    before = text[max(0, start - _MARKER_WINDOW):start]
+    # Flatten markdown emphasis and whitespace so `**Proposed**` reads as `proposed`.
+    return re.sub(r"[*_`\s]+", " ", before).rstrip().lower().endswith(PROPOSAL_MARKER)
+
+
+def check_spec_seam_pins(yaml_mod) -> None:
+    """Every seam pin the SPECS assert must be declared in this repo's register.
+
+    A `seamPin` claims that another repository carries the identical vocabulary.
+    `docs/roadmap.md` states the rule this enforces: *"A pin that exists on one
+    side only is not a pin; it is a claim."* The register obeys that rule — it
+    declares only pins that survive `scripts/check-standards-parity.py` check 5,
+    which is why it declares two and abstains from three. Published spec prose
+    was the half nothing ever looked at, and `2.2.0` shipped
+    "Pinned vocabulary — seam pin `order-status`" (likewise
+    `permit-condition-codes` and `trace-flag-codes`) while no register on any
+    side declared them. The register was honest and the versioned artifact was
+    not, in the same release.
+
+    This closes the first link of a two-link chain, and deliberately does not
+    duplicate the second:
+
+        spec prose  ->  standards/registry.yaml     (here, standalone)
+        registry    ->  the sibling registers       (parity script, check 5)
+
+    A spec may assert a pin only if this register declares it; this register may
+    declare it only if a sibling does. Naming an intended pin is still allowed —
+    mark it `**proposed**` and it reads as a proposal rather than a fact. That is
+    not an escape hatch: it changes what the integrator reads, which was the
+    entire defect. The reverse is checked too, so a pin that later becomes real
+    cannot leave the prose describing it as merely proposed.
+    """
+    register_path = ROOT / "standards" / "registry.yaml"
+    register = yaml_mod.safe_load(register_path.read_text())
+    declared = {c["seamPin"] for c in (register.get("controls") or []) if c.get("seamPin")}
+
+    specs = sorted(ROOT.glob("openapi*.yaml"))
+    # Anti-vacuity: "found nothing" and "read nothing" look identical in a green
+    # line. This gate scans the client and admin planes; fewer means it measured
+    # less than it claims.
+    if len(specs) < 2:
+        fail(
+            f"seam-pin prose: expected the client and admin specs, scanned {len(specs)} "
+            f"({', '.join(p.name for p in specs) or 'none'}) — this check measured almost nothing"
+        )
+
+    problems: list[str] = []
+    asserted = proposed = 0
+
+    for spec in specs:
+        text = spec.read_text(errors="replace")
+        rel = spec.relative_to(ROOT)
+
+        # Reconcile first: every mention must resolve to a named pin this gate
+        # can actually classify. One that does not is unchecked prose, and
+        # unchecked prose is how the defect shipped in the first place.
+        parsed = {m.start() for m in SEAM_PIN_PHRASE.finditer(text)}
+        for mention in SEAM_PIN_MENTION.finditer(text):
+            if mention.start() not in parsed:
+                line = text.count("\n", 0, mention.start()) + 1
+                problems.append(
+                    f"{rel}:{line}: mentions a seam pin but names none this gate can read "
+                    "(expected: seam pin `some-pin-id`).\n"
+                    "       Left unparsed it would be an assertion nothing checks — name the\n"
+                    "       pin in backticks, or reword so it does not read as a pin."
+                )
+
+        for match in SEAM_PIN_PHRASE.finditer(text):
+            pin = match.group(1)
+            line = text.count("\n", 0, match.start()) + 1
+            if _is_proposed(text, match.start()):
+                proposed += 1
+                if pin in declared:
+                    problems.append(
+                        f"{rel}:{line}: calls seam pin {pin!r} PROPOSED, but "
+                        f"standards/registry.yaml now declares it. The prose is behind the "
+                        f"register — drop the '{PROPOSAL_MARKER}' marker and state it as a pin."
+                    )
+            else:
+                asserted += 1
+                if pin not in declared:
+                    problems.append(
+                        f"{rel}:{line}: asserts seam pin {pin!r} as fact, but "
+                        f"standards/registry.yaml declares no such pin "
+                        f"(it declares: {', '.join(sorted(declared)) or 'none'}).\n"
+                        "       A pin that exists on one side only is not a pin; it is a claim\n"
+                        "       (docs/roadmap.md). Either declare it in the register — which\n"
+                        "       check-standards-parity.py then holds to a sibling actually\n"
+                        f"       naming it — or mark the prose '**{PROPOSAL_MARKER}**'."
+                    )
+
+    if problems:
+        fail("seam pins asserted by the specs:\n  " + "\n  ".join(problems))
+
+    print(
+        f"OK spec seam pins: {asserted} asserted (all declared in the register), "
+        f"{proposed} proposed, across {len(specs)} spec(s)"
+    )
+
+
 def check_license_headers() -> None:
     """Every open, comment-capable artifact must declare its licence with an SPDX header."""
     missing: list[str] = []
@@ -522,6 +653,9 @@ def main() -> int:
     check_examples_conform(yaml)
 
     validate_standards_register(yaml)
+    # The register is checked before the prose that cites it, so a failure below
+    # is about the prose and never about a malformed register.
+    check_spec_seam_pins(yaml)
     check_license_headers()
     return 0
 
