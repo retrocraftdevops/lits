@@ -4,6 +4,55 @@ All notable changes to the **LITS API contract** are recorded here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The contract is versioned in the URL
 path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
+## [2.1.0] — 2026-08-16
+
+### Added
+
+Vaccination enrichment — six optional fields on the `Vaccination` request schema. **Genuinely
+additive: no existing client can break.** Nothing is removed, renamed, or made required, and the
+`required` set is untouched. Because `Vaccination` is `additionalProperties: false`, this is
+strictly a *widening* — payloads that the registry would previously have rejected are now
+accepted, and every payload valid before this change is still valid. There is no tightening in
+this release.
+
+- **`lot_expiry`** (`date`). `lot_number` already existed and already satisfies the batch
+  requirement — it is **not** duplicated under a new name. Expiry is the missing half: the lot
+  number identifies the batch for a recall, only the expiry says whether the dose was still
+  viable when it went in.
+- **`cold_chain_ok`** (`boolean|null`) — the administering officer's attestation that the cold
+  chain held. `false` is a cold-chain **exception**: it is the per-vaccination event that the
+  control plane's existing `CampaignProgress.cold_chain_exceptions` counter counts, and the field
+  description says so explicitly so the seam is not left to inference. Null or absent means *not
+  asserted*, which is deliberately **not** an assertion that the chain held.
+- **`cold_chain_evidence_ref`** (`string|null`) — a hash or URI pointing into the integrator's
+  own records. **Raw fridge telemetry stays out of the registry**: temperature time series,
+  sensor readings and alarm logs remain with the integrator. The contract carries the attestation
+  and a pointer to its proof, never the series.
+- **`dual_id_confirmed`** (`boolean|null`) — the animal was presented with both its permanent
+  mark (brand or tattoo) and its tag, and the two agreed. This is **not** "two tags".
+- **`holding_id`**, **`zone_code`** — where and in which veterinary zone the dose was
+  administered. Recorded rather than derived, because deriving either from the animal's *current*
+  position gives the wrong answer for any animal that has since moved, and campaign coverage is
+  computed per holding and per zone.
+
+`examples/record-vaccination.json` and the integration guide's field mapping are updated in the
+same change (CONTRIBUTING.md quality gate, item 3). No control-plane change was needed:
+`CampaignProgress.cold_chain_exceptions` already exists.
+
+> **TO-VERIFY.** The driver is **South Africa's RVS-FMD scheme, reported gazetted 4 May 2026**,
+> conditioning participation on a digital system recording vaccination date, vaccine batch number
+> and vaccine storage temperature. That instrument and its requirements are **unverified** and
+> must be confirmed with the South African authority before any profile cites them.
+>
+> **TO-VERIFY.** The dual-identification rule is attributed to the **Animal Identification Act 6
+> of 2002**, under which the permanent brand/tattoo is understood to be the legal identifier and
+> the tag to supplement it — hence "permanent mark *and* tag", not "two tags". This citation is
+> **unverified**. It is deliberately **not** written into the contract: the schema describes the
+> fact recorded and states that the legal weight is defined by the territory profile, because
+> hard-coding one jurisdiction's identification law into a multi-country contract is the
+> neutrality failure RFC 0003 §3 argues against. The citation belongs in `profiles/za`, which is
+> approved but not yet written.
+
 ## [2.0.0] — 2026-06-25
 
 Adds the elevated-scope read plane (for export integrators such as METS) and the disease/lab

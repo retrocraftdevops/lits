@@ -3,9 +3,15 @@
   "disease": "foot-and-mouth disease",
   "vaccine_name": "Aftovax",
   "lot_number": "AFT-2026-08",
+  "lot_expiry": "2027-02-28",
   "dose": "2 mL SC",
   "administered_at": "2026-05-30T08:15:00Z",
   "next_due_at": "2026-11-30T00:00:00Z",
   "administered_by": "Dr N. Ncube (DVS Gwanda)",
-  "campaign_id": "ZW-FMD-2026-H1"
+  "campaign_id": "ZW-FMD-2026-H1",
+  "cold_chain_ok": true,
+  "cold_chain_evidence_ref": "sha256:4f9a2c1e8b7d6053a1f4c29e7b8d0a3512ce6f47b9d208a1e3c5b7f09d4a6218",
+  "dual_id_confirmed": true,
+  "holding_id": "HLD-MAT-00891",
+  "zone_code": "ZW-FMD-RED-SE"
 }

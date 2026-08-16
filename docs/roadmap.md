@@ -19,8 +19,8 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate); 3 follow-ups open |
-| 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client → 2.1.0 | next |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate); 4 follow-ups open |
+| 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
 | 4 | [Biosecurity attestation](#4-biosecurity-attestation) | additive | client + admin | not drafted |
@@ -70,10 +70,22 @@ Two checks added, both proven red-then-green before being trusted:
 
 ### Follow-up still open
 
-Three things that step 0 exposed and did **not** fix. None blocks step 1, and all three should be
-resolved before the contract is presented as ratifiable:
+Four things exposed but **not** fixed. None blocks the next step, and all should be resolved
+before the contract is presented as ratifiable:
 
-1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
+1. **`examples/*.json` are never checked against the schemas they illustrate.** The gate checks
+   only that each example **parses as JSON**. Measured, not assumed: an example given a field that
+   violates `additionalProperties: false`, and an example given a wrong-typed value
+   (`cold_chain_ok: "not a boolean"`), both leave `validate.py` reporting `OK examples: 5 JSON
+   payload(s) parse` and exiting 0; only genuinely malformed JSON fails it. So CONTRIBUTING.md's
+   quality-gate item 3 — "update any affected `examples/*.json` so they never drift from the
+   contract" — is an instruction enforced by nothing, and the examples are the first thing an
+   integrator copies. **This is cheap to close:** all five examples were checked by hand against
+   their schemas (`AnimalRegistration`, `Movement`, `Vaccination`, `CertificateRequest`,
+   `ZoneDelta`) and all five currently conform, so adding the check would land green rather than
+   opening a cleanup.
+
+2. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
    stopped reporting anything at all. With it removed, the run completes and surfaces 101 uses of
    the OpenAPI 3.0 `nullable` keyword in `openapi-admin.yaml` (invalid in 3.1, where the form is
@@ -81,7 +93,7 @@ resolved before the contract is presented as ratifiable:
    descriptions in `openapi.yaml` where an unquoted `,` splits the mapping. These were **not**
    introduced by step 0 and are deliberately left out of it: replacing `nullable` is a
    schema-semantics change across ~101 sites, not hygiene.
-2. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
+3. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
    `standards/README.md` §Verify presents it as the command that "hashes the vocabulary + compares
    pinned seams across repos". There is no such file in this repository (`scripts/` contains only
    `validate.py`), and [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) has
@@ -91,7 +103,7 @@ resolved before the contract is presented as ratifiable:
    never *detected*". It matters more from step 2 onward, which introduces five new pins (see
    [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)). Until the script exists,
    anyone relying on seam parity must verify it by hand.
-3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
+4. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
    genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
    (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
    but `rfcs/0001` carries an `SPDX-License-Identifier: Apache-2.0` header, RFCs 0003–0005 follow
@@ -106,34 +118,45 @@ resolved before the contract is presented as ratifiable:
 
 ## 1. Vaccination enrichment
 
-**The smallest useful step in the list, and the most urgent** — flagged `RVS-FMD-urgent`. It adds
-no object, no endpoint and no plane; it adds optional fields to a schema that already exists, so
-it can land while the RFCs above it are still being argued.
+**Landed** — client `2.0.0` → `2.1.0`. The smallest step in the list and the most urgent, taken as
+a direct additive PR rather than an RFC: it adds no object, no endpoint and no plane, only optional
+fields to a schema that already existed.
 
-`Vaccination` today carries `national_id`, `disease`, `vaccine_name`, `lot_number`, `dose`,
-`administered_at`, `next_due_at`, `administered_by`, `campaign_id`. It already has
-**`lot_number`** — which is the useful half of a vaccine recall and the useless half of a cold-chain
-question. Proposed additions, all optional:
+`Vaccination` already carried **`lot_number`**, which satisfies the batch requirement; it was
+**not** duplicated under a new name. Six optional fields were added:
 
 | Field | Type | Why |
 |---|---|---|
-| `lot_expiry` | `date` | A lot number identifies the batch; only the expiry says whether the dose was viable when it went in. Recall and coverage-audit both need it, and it is on the vial. |
-| `cold_chain_ok` | `boolean` | The field officer's assertion that the cold chain held. An FMD vaccine that broke cold chain was an injection, not an immunisation, and coverage computed without this over-reports protection — the number a response is planned against. |
-| `cold_chain_evidence_ref` | `string` | A **reference** to the evidence, never the evidence. Fridge telemetry stays in the farm app (RFC 0003 §9). |
-| `dual_id_confirmed` | `boolean` | That both the visual tag and the electronic ID were read at the point of vaccination. Without it a vaccination binds to whichever identifier was convenient, and the record cannot be reconciled later. |
-| `holding_id` | `string` | Where it happened. Coverage is computed per holding and per zone; today it can only be derived by joining back through the animal's current holding, which is wrong for any animal that has since moved. |
-| `zone_code` | `string` | The zone at the time of vaccination. Same reason: zones change, and ring-vaccination coverage is a question about the zone as it was. |
+| `lot_expiry` | `date` | A lot number identifies the batch for a recall; only the expiry says whether the dose was viable when it went in. It is on the vial. |
+| `cold_chain_ok` | `boolean\|null` | The administering officer's attestation that the cold chain held. A vaccine that broke cold chain was an injection, not an immunisation, so coverage computed without it over-reports protection — and coverage is the number an outbreak response is planned against. |
+| `cold_chain_evidence_ref` | `string\|null` | A hash/URI **reference** to the evidence, never the evidence. Fridge telemetry stays with the integrator (RFC 0003 §9). |
+| `dual_id_confirmed` | `boolean\|null` | The animal was presented with both its **permanent mark (brand/tattoo)** and its **tag**, and the two agreed. Not "two tags", and not tag-plus-EID. |
+| `holding_id` | `string` | Where the dose was given. Recorded, not derived — deriving it from the animal's *current* holding is wrong for any animal that has since moved. |
+| `zone_code` | `string` | The zone at the time of administration. Same reason: zones change, and ring-vaccination coverage is a question about the zone as it was. |
 
-`holding_id` and `zone_code` are the two that repay the effort immediately: they turn campaign
-coverage from a derived, drift-prone join into a recorded fact. `Vaccination` is
-`additionalProperties: false`, so each must be declared.
+**Polarity note.** The control plane already counts `CampaignProgress.cold_chain_exceptions`, so
+the client field and the admin counter are opposite polarities of one fact. The admin spec has no
+competing *field* name — its counter is a campaign-level aggregate, not a per-vaccination field —
+so `cold_chain_ok` was kept for its attestation semantics and safer absent-state (absent means
+*not asserted*, never "the chain held"), with the link to the counter written explicitly into the
+field description rather than left to inference.
 
-**Ordering:** first, because it is independent of everything below it and urgent on its own terms.
-Nothing later depends on it.
+**Neutrality.** The statutory basis for dual identification is **not** written into the shared
+contract. The schema records the fact and states that its legal weight is profile-defined, because
+hard-coding one jurisdiction's identification law into a multi-country contract is the neutrality
+failure RFC 0003 §3 argues against. The citation belongs in `profiles/za` (step 8).
 
-**Gate:** `scripts/validate.py` + `@redocly/cli lint`, a `### Added` changelog entry, and an
-updated `examples/record-vaccination.json` so the example never drifts from the contract
-(CONTRIBUTING.md, quality gate item 3).
+**TO-VERIFY:** the driver — South Africa's **RVS-FMD scheme, reported gazetted 4 May 2026**,
+conditioning participation on a digital system recording vaccination date, vaccine batch number and
+storage temperature — and the **Animal Identification Act 6 of 2002** attribution behind
+`dual_id_confirmed`. Both unverified; confirm with the South African authority before any profile
+cites them.
+
+**Shipped with:** updated `examples/record-vaccination.json`, the integration guide's field
+mapping, a `### Added` changelog entry, and two conformance cases — that a `2.0.0`-shaped body is
+still accepted at `2.1.0` (the guard that "additive" really was additive), and that
+`cold_chain_ok: false` is the event incrementing `cold_chain_exceptions` (a cross-plane seam,
+asserted end to end).
 
 ---
 

@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS — Livestock Identification & Traceability System
-  version: 2.0.0
+  version: 2.1.0
   summary: Vendor-neutral national livestock registry API (the source of truth).
   description: |
     LITS is the national registry of record for livestock **identity**, **movement**
@@ -1308,12 +1308,53 @@ components:
         national_id: { type: string }
         disease: { type: string, examples: [foot-and-mouth disease] }
         vaccine_name: { type: string }
-        lot_number: { type: string }
+        lot_number: { type: string, description: Vaccine batch identifier — the recall key. }
+        lot_expiry:
+          type: string
+          format: date
+          description: |
+            Expiry date of the vaccine lot. `lot_number` identifies the batch for a recall;
+            only the expiry says whether the dose was still viable when it was administered.
         dose: { type: string }
         administered_at: { type: string, format: date-time }
         next_due_at: { type: string, format: date-time }
         administered_by: { type: string, description: Veterinary official name/ID. }
         campaign_id: { type: string }
+        cold_chain_ok:
+          type: [boolean, 'null']
+          description: |
+            Attestation by the administering officer that the cold chain held for this dose.
+            `false` is a cold-chain **exception** — it is the per-vaccination event that the
+            control plane's `CampaignProgress.cold_chain_exceptions` counter counts, so a client
+            reporting `false` here is reporting the thing that increments it.
+            Null or absent means *not asserted*, which is NOT an assertion that the chain held.
+        cold_chain_evidence_ref:
+          type: [string, 'null']
+          description: |
+            Reference (hash or URI) into the integrator's own records for the evidence behind
+            `cold_chain_ok`. A pointer only. Raw fridge telemetry — temperature time series,
+            sensor readings, alarm logs — stays with the integrator and is never carried in the
+            registry; the contract records the attestation and where to find its proof.
+        dual_id_confirmed:
+          type: [boolean, 'null']
+          description: |
+            The animal was presented with BOTH its permanent mark (brand or tattoo) and its tag
+            at administration, and the two agreed. This is not "two tags": where a territory's
+            law makes the permanent mark the legal identifier and the tag a supplement to it,
+            this records that both were read. The legal weight of the confirmation is defined by
+            the territory profile, not by this contract.
+        holding_id:
+          type: string
+          description: |
+            Holding at which the dose was administered. Recorded rather than derived: deriving it
+            from the animal's current holding gives the wrong answer for any animal that has since
+            moved, and coverage is computed per holding.
+        zone_code:
+          type: string
+          description: |
+            Veterinary / FMD zone at the time of administration. Recorded for the same reason as
+            `holding_id` — zones change, and ring-vaccination coverage is a question about the
+            zone as it was, not as it now is.
       additionalProperties: false
 
     VaccinationAck:

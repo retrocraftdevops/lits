@@ -51,7 +51,7 @@ business logic. Representative mappings:
 | --- | --- |
 | `register_animal` | `tag → visual_tag`, `eid_tag → eid`, `farm_registration_number → holding_id`, `owner_name → keeper_name`, plus `species/breed/sex/date_of_birth/district/fmd_zone_code` passthrough |
 | `record_movement` | `permit_number`, `subject_count → head_count`, per-animal `national_id/visual_tag/species/fmd_zone_code`, `origin_site_name → origin`, `approved_by → vet_endorsement`, `destination(_zone_code/_type)`, `purpose`, transporter/vehicle/dates |
-| `record_vaccination` | animal `national_id` (or `eid_tag`), `disease`, `vaccine_name`, `lot_number`, `dose`, `administered_at`, `next_due_at`, `vet_name → administered_by`, `campaign_id` |
+| `record_vaccination` | animal `national_id` (or `eid_tag`), `disease`, `vaccine_name`, `lot_number`, `dose`, `administered_at`, `next_due_at`, `vet_name → administered_by`, `campaign_id`, plus optional `lot_expiry`, `cold_chain_ok`, `cold_chain_evidence_ref`, `dual_id_confirmed`, `holding_id`, `zone_code` passthrough |
 | `request_certificate` | `kind` (default `movement_permit`), `subject_type` (default `movement`), `subject_id`, `destination`, `valid_until`, `vet_endorsement` |
 
 See request bodies in [../examples/](../examples/): [`register-animal.json`](../examples/register-animal.json),
