@@ -41,6 +41,7 @@ These operations cover the integration. The right column is the **FuroTrack refe
 | `GET /v1/movements/list?status=&since=` | Poll for permits the authority has acted on (§5) | movement auto-sync |
 | `POST /v1/vaccinations` | Record a vaccination / mandatory disease event → `id` | `record_vaccination` |
 | `GET /v1/zones?since_version=N` | Pull the veterinary / FMD zone delta | `fmd_zone_sync` consumer |
+| `GET /v1/quarantine-orders?since_version=N` | Pull the disease-response-order delta (§4b) | *new at `2.2.0` — same loop as `fmd_zone_sync`* |
 | `POST /v1/certificates` | **Request** a registry certificate (request-only, §6) | `request_certificate` |
 
 ### Field mapping (reference: FuroTrack `LITSAdapter`)
@@ -113,6 +114,51 @@ clients — a client never creates a national zone (registry-operations.md §1).
 > Migration note (FuroTrack): today FuroTrack can author zones locally. Under LITS-governed
 > Zimbabwe that authority moves to the registry and FuroTrack becomes **read-only** on national
 > zones — otherwise two competing zone truths emerge.
+
+**Gate on `movement_restriction`, never on `zone_type`.** `movement_restriction`
+(`none | restricted | blocked`) is the load-bearing field and its values do not change.
+`zone_type` is **descriptive** — for labelling and colour — and the registry adds values to it:
+`standstill` arrived at `2.2.0` (see §4b). A client that switches exhaustively on `zone_type` with
+no default branch will break on the next one; a client that blocks on
+`movement_restriction: blocked` never will. Treat an unrecognised `zone_type` as a display
+fallback, not an error.
+
+### 4b. Disease response orders — quarantine & standstill (delta sync)
+
+New at `2.2.0`. An **order** is the act of authority that closes a holding or stands the country
+still. Before it existed in the contract, a farm app whose keeper was under quarantine would
+lodge a movement, show a permit reference, and let the stock leave — the registry knew, and had
+no way to tell you.
+
+- `GET /v1/quarantine-orders?since_version=N` is **`/zones`'s loop, field for field**. Same
+  cursor, same persistence rule, same offline-first intent. If you already have `fmd_zone_sync`,
+  you have this. See [`quarantine-order-delta.response.json`](../examples/quarantine-order-delta.response.json).
+- **A lifted or revoked order stays in the feed** carrying that `status`. Do not treat
+  disappearance as retraction — it means you have not synced, and a client that assumed otherwise
+  would enforce a lifted order forever.
+- **Read `conditions[].code` and fail CLOSED on a value you do not recognise** — treat the order
+  as at least as restrictive as `no_movement_on_off`. This is the opposite of the usual "ignore
+  unknown enum values" advice and it is deliberate: ignoring a restriction you do not understand
+  permits a movement the authority forbade. A delayed truck is cheaper than the disease leaving
+  the cordon.
+- **Do not compute the dates.** `milestones[{code, date}]` are supplied by the registry under its
+  own territory's profile. Render and act on them; do not re-derive a review date from your own
+  copy of the rules, because your copy goes stale and the registry's does not.
+- **You may already be enforcing standstills without doing anything.** An active `standstill`
+  order is *also* projected into `GET /v1/zones` as `zone_type: standstill` with
+  `movement_restriction: blocked`. If you gate on `movement_restriction`, a national standstill
+  binds your client on its next zone sync with **no code change** — which is the point, since
+  outbreak response is measured in hours. See
+  [`standstill-zone-delta.response.json`](../examples/standstill-zone-delta.response.json).
+- **Join, do not double-count.** `QuarantineOrder.projected_zone_code` names the zone an order
+  projects into. A client reading both feeds should join on it, or it will report one restriction
+  as two.
+- **Trace flags** (`trace_flags` on `GET /v1/animals/{national_id}` and
+  `GET /v1/animals/{id}/health`) are **registry-applied only** — there is no client write path,
+  and asking for one is asking to exercise authority you do not have. `expires_at: null` means
+  **lifelong**, not "unset": a `sero_positive_lifelong` flag outlives any later negative test, so
+  a market-access decision made from `disease_free` and `last_test_result` alone can be wrong in
+  the permissive direction.
 
 ---
 

@@ -22,7 +22,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 | 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 1b | [`/movements/list` status defect](#1b-movementslist-status-defect--landed) | fix | client 2.1.0 → **2.1.1** | **landed** |
-| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.1 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | **accepted** 2026-08-16 |
+| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.1 → **2.2.0**, admin 1.4.0-draft → **1.5.0-draft** | **landed** (`e35075c` + `b788a94`); 1 obligation owed |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | **accepted** 2026-08-16 |
 | 4 | [Biosecurity attestation](#4-biosecurity-attestation) | additive | client + admin | not drafted |
 | 5 | [Sampling](#5-sampling) | additive | client + admin | not drafted |
@@ -43,7 +43,7 @@ under §2, and the committee may revisit them when it is constituted. Recording 
 committee ratifications would have been the easy overclaim and would have been false.
 
 **What acceptance unblocks:** steps 2, 3 and 7 are no longer gated on a decision. Work on them may
-start; they are proposals no longer.
+start; they are proposals no longer. **Step 2 has since landed** — see below.
 
 **What acceptance does not change — the ordering constraints below still hold, all of them:**
 
@@ -376,22 +376,77 @@ change because `openapi.yaml` already has one orphan (`CertificateRevocation`, s
 
 ## 2. RFC 0003 — disease response orders
 
-**Accepted 2026-08-16** by the steward (pre-designation, per the caveat above); **not implemented.**
+**Accepted 2026-08-16** by the steward (pre-designation, per the caveat above), and **landed the
+same day** — client `2.1.1` → **`2.2.0`** (`e35075c`), admin `1.4.0-draft` → **`1.5.0-draft`**
+(`b788a94`). Detail in the [changelog](../CHANGELOG.md) `[2.2.0]`.
 
-[rfcs/0003-disease-response-orders.md](../rfcs/0003-disease-response-orders.md). QuarantineOrder +
-StandstillOrder + animal trace flags. Orders authored on the admin plane, read by clients as a
-versioned delta mirroring `/zones`; no jurisdiction's arithmetic in the contract (pinned
-`milestones` and `conditions` vocabularies, each profile stating what its law requires);
-standstill projected into the existing zone feed so deployed clients enforce it with **no client
-changes**; trace flags registry-applied only.
+[rfcs/0003-disease-response-orders.md](../rfcs/0003-disease-response-orders.md). What shipped, and
+it is the RFC's own set of decisions rather than a re-litigation of them:
 
-**Ordering:** before RFC 0004, because a movement issued *under an order* needs orders to exist
-(`issued_under_order_id`), and RFC 0004's permit conditions reuse this RFC's
-`permit-condition-codes` vocabulary. After step 1, because step 1 is smaller and urgent, and
-nothing in it blocks this.
+- `GET /v1/quarantine-orders` — a versioned delta **mirroring `/zones` field for field**, so an
+  offline-first consumer that already has `fmd_zone_sync` has this too. A lifted order stays in
+  the feed carrying `status: lifted`, because retraction by omission is indistinguishable from a
+  missed sync.
+- Authoring on the admin plane only: `POST/GET /admin/quarantine-orders`, `GET …/{order_id}`,
+  `POST …/{order_id}/{action}` (`activate | suspend | resume | extend | lift | revoke`), reusing
+  the `/admin/movements/{ref}/{action}` idiom rather than inventing a second one.
+- **No jurisdiction's arithmetic in the contract** — `milestones[{code, date}]` with a pinned code
+  vocabulary; each profile states which its law requires and how they are derived.
+- **Standstill projected into the zone feed** (`zone_type: standstill`,
+  `movement_restriction: blocked`), so an already-deployed client enforces a national standstill
+  with **no client change**. The zone is a view of the order: `ZoneWrite` deliberately did **not**
+  gain the value, so it cannot be hand-authored into a second source of truth.
+- Trace flags registry-applied only, read on `AnimalRecord` and `AnimalHealthStatus`;
+  `expires_at: null` documented as **lifelong**.
 
-**Leaves a stated gap:** `scope: section` is specified here but not issuable until step 4 — the
-contract says so and refuses (`422 sections_not_declared`) rather than issuing a vague order.
+**Additive in form; two items are additive in form but not in effect**, and the changelog names
+both rather than leaving an integrator to meet them on a sync: `Zone.zone_type` gaining a value
+(safe for a client gating on `movement_restriction`, which is what the integration guide tells
+clients to do; unsafe for one switching exhaustively), and the **fail-closed** `conditions[].code`
+vocabulary, which makes any *future* condition code a permitting→blocking change at deployed
+clients.
+
+**One ambiguity in the RFC was resolved rather than guessed, and it is flagged for the steward.**
+RFC §8 sketches a single `status` enum for both planes, while §2 annotates the admin read as
+"incl. drafts" — only meaningful as a contrast with the client feed. `draft` was therefore kept
+**out** of the client `OrderStatus` and **in** the admin one, matching how
+`MovementLifecycleStatus` already omits the control plane's `draft`. If the steward reads §8 as
+normative on this point, the client enum gains one value — an additive change.
+
+**Leaves the stated gap, unchanged:** `scope: section` is specified and **not issuable** until
+step 4 — the contract says so and the control plane refuses (`422 sections_not_declared`) rather
+than issuing an order it cannot describe.
+
+**Owed, and not done here: the three seam pins.** `order-status`, `trace-flag-codes` and
+`permit-condition-codes` are **not** recorded in `standards/registry.yaml`, because a pin declared
+on one side only is exactly what `scripts/check-standards-parity.py` check 5 refuses — *"a pin
+that exists on one side only is not a pin; it is a claim"*. The sibling halves (FuroTrack, Dzinza)
+were out of scope for this change, so the pin lands in the **same change window** as those
+register entries, which is what the obligation below has always required.
+
+**Checking that claim found a defect in the checker, and it is worth reading.** Planting
+`order-status` in a scratch copy of the register and running the parity script did **not** fail —
+it printed `order-status: named by furotrack` and **exited 0**. The match was `name="order-status"`,
+a **radio-button group** in `apps/web-dashboard/src/app/(dashboard)/orders/page.tsx`. A form
+control had satisfied a four-repo standards obligation. The cause: check 5 searched every
+searchable file in a sibling checkout for the pin as a bare substring — necessarily broad, because
+only Dzinza keeps its register in a `registry.yaml` while FuroField's lives in
+`apps/app/lib/standards/*.ts` and the engine's in `furotech_api/standards/*.py`. Fixed in
+`scripts/check-standards-parity.py`: a match now counts only in a **standards artifact** (a path
+component containing `standards`, or a register file), and the output names the **file** that
+declared the pin instead of only the repo, so the evidence is in the log rather than in a
+reviewer's trust. Proven in both directions — the two real pins still pass (now citing
+`dzinza:platform/lits/standards.py` and the rest), and the planted `order-status` exits 1.
+
+**Note what this near-miss means for the obligation itself.** Had the pins been added here without
+checking, the gate would have reported them agreed — on the strength of a radio button — and the
+claim "these pins are pinned on both sides" would have been false while every check was green.
+That is the exact failure the pin obligation exists to prevent, arriving through the mechanism
+meant to prevent it.
+
+**Ordering:** it went before RFC 0004, because a movement issued *under an order* needs orders to
+exist (`issued_under_order_id`), and RFC 0004's permit conditions reuse this RFC's
+`permit-condition-codes` vocabulary. **Step 3 is now unblocked.**
 
 ---
 
@@ -500,18 +555,20 @@ because it is low value, but because a profile's job is to map a jurisdiction's 
 **real contract surface**, and half of what a South African profile needs to cite does not exist
 yet.
 
-**Their acceptance on 2026-08-16 does not move this step forward, and that is the point.** An
-accepted RFC has a *ratified* shape, not an *implemented* one: there is still no
-`QuarantineOrder` schema, no `GET /v1/movements/{permit_reference}`, no `MovementPermit` in
-`openapi.yaml` for a profile to name. A profile citing a schema that exists only in an RFC is a
-profile citing an intention, which is the failure mode this ordering exists to avoid. This step
-unblocks when steps 2 and 3 **land**, not when they are decided.
+**Their acceptance on 2026-08-16 did not move this step forward; step 2 *landing* moved half of
+it.** An accepted RFC has a *ratified* shape, not an *implemented* one, and a profile citing a
+schema that exists only in an RFC is a profile citing an intention. That was the whole reason for
+the ordering.
 
-A profile written now could describe the mandate and the identifier scheme, and would have to
-hand-wave exactly the parts that matter most: which contract object carries a quarantine, which
-carries a standstill, which milestones the law requires, what a movement permit is evidence of.
-Written after steps 2–3, each of those maps to a named schema, field and endpoint — which is what
-makes a profile checkable instead of a description of intent.
+**Half of what this profile needs now exists and is citable.** `QuarantineOrder`,
+`OrderMilestoneCode`, `OrderConditionCode`, `TraceFlag` and `Zone.zone_type: standstill` are named
+schemas and fields in `openapi.yaml` `2.2.0` — so a South African profile can now state, checkably,
+which object carries a quarantine, which carries a standstill, and **which milestones its law
+requires** (RFC 0003 §3 puts that squarely on the profile). **The other half is still missing**:
+step 3 has not landed, so there is no `GET /v1/movements/{permit_reference}` and no
+`MovementPermit` for a profile to point at when it describes what a movement permit is evidence of.
+
+This step therefore stays sequenced last, but its blocker is now **step 3 alone**.
 
 **Not written this wave.** When it is, it follows the `profiles/mz` structure — `README.md`,
 `legal-basis-and-mandate.md`, a use-case pack — and the same **TO-VERIFY** discipline on every
@@ -527,16 +584,33 @@ across them, and drift is a conformance failure rather than a difference of opin
 
 The steps above introduce **five new pins**:
 
-| Pin | Introduced by | Pins |
-|---|---|---|
-| `order-status` | step 2 | the `QuarantineOrder.status` lifecycle |
-| `trace-flag-codes` | step 2 | `sero_positive_lifelong`, `quarantine_history` |
-| `permit-condition-codes` | steps 2–3 | the `conditions[].code` vocabulary shared by orders and permits |
-| `biosecurity-scheme` | step 4 | the scheme a biosecurity attestation was assessed against |
-| `event-types` | steps 6–7 | the pinned event-type vocabulary |
+| Pin | Introduced by | Pins | State |
+|---|---|---|---|
+| `order-status` | step 2 | the `QuarantineOrder.status` lifecycle | **owed** — step 2 landed, pin not declared |
+| `trace-flag-codes` | step 2 | `sero_positive_lifelong`, `quarantine_history` | **owed** — step 2 landed, pin not declared |
+| `permit-condition-codes` | steps 2–3 | the `conditions[].code` vocabulary shared by orders and permits | **owed** — step 2 landed, pin not declared |
+| `biosecurity-scheme` | step 4 | the scheme a biosecurity attestation was assessed against | not reached |
+| `event-types` | steps 6–7 | the pinned event-type vocabulary | not reached |
 
 **Each must be entered in FuroTrack's and Dzinza's registers in the same change window** as the
 LITS step that introduces it. A pin that exists on one side only is not a pin; it is a claim.
+
+**Three are now owed, and this is the first time a pin has been.** Step 2 landed its contract
+surface (`2.2.0` / `1.5.0-draft`) **without** declaring its three pins in
+`standards/registry.yaml`, because declaring them here while the sibling registers lack them is
+the thing this obligation forbids — and `scripts/check-standards-parity.py` check 5 would refuse
+it. The vocabularies themselves are pinned *in prose* in both specs (each enum's `description`
+names its `seamPin`), so the intent is on the record and the register entry is the outstanding
+half.
+
+**Closing them is a single change touching three repos**: add the three `seamPin` values to
+controls in `lits/standards/registry.yaml`, FuroTrack's register and Dzinza's, together. Verify
+with the two commands below and read the exit codes; check 5 is now strict enough for the result
+to mean something (see step 2's near-miss — the check previously accepted a *radio button* as a
+sibling declaration).
+
+**`standards/vocabulary.v1.json` still needs no edit for any of them**, and that instinct is the
+expensive one to follow: a `seamPin` is a *value* recorded on a control, not a schema change.
 
 **`standards/vocabulary.v1.json` itself needs no edit for any of them.** Its existing enums
 (`Status`, `EvidenceTier`, `Family`, `AppliesTo`) are sufficient — a new `seamPin` is a *value*
