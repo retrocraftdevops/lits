@@ -19,7 +19,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 1 follow-up open |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
@@ -84,12 +84,16 @@ Three checks added across two rounds, each proven red-then-green before being tr
 
 ### Follow-up still open
 
-Three things were exposed here; **one remains open**. None blocks the next step, and all should be
+Three things were exposed here; **two remain open**. None blocks the next step, and all should be
 resolved before the contract is presented as ratifiable. (A fourth — examples never checked against
 their schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
-Items 2 and 3 were both closed on 2026-08-16 by decisions from Rodrick as steward — this repo owns
-a parity step, and `rfcs/` is Apache-2.0. Both entries are kept rather than deleted, because the
-reasoning is what stops the questions being reopened. Only item 1 remains.
+Item 3 was closed on 2026-08-16 by a decision from Rodrick as steward: `rfcs/` is Apache-2.0.
+
+**Item 2 was recorded as CLOSED on 2026-08-16 and that was premature — it is re-scoped and
+re-opened below.** The decision was made and the script was written, reviewed and proven capable
+of failing, all of which stands. What does not stand is the word *enforced*: **nothing runs it.**
+Entries are kept rather than deleted, because the reasoning is what stops the questions being
+reopened.
 
 1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
@@ -120,16 +124,45 @@ reasoning is what stops the questions being reopened. Only item 1 remains.
    mutated and the script re-run against it: it named `lits/standards/vocabulary.v1.json`, printed
    expected and found hashes, and exited 1. Nothing in this repository was modified to do it.
 
-   **The residual gap was narrower than this entry claimed, and it is now CLOSED.** Detection had
+   **The residual gap was narrower than this entry claimed.** Detection had
    lived only in a sibling repo's CI, so a drift introduced here was caught only when *FuroField's*
    pipeline ran — a single point of failure for a four-repo obligation, and one whose availability
    history is not spotless. It mattered more from step 2 onward, which introduces five new pins
    (see [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)).
 
+   > **RE-OPENED 2026-08-16 (same day). This entry said CLOSED; the check is landed but NOT
+   > ENFORCED, and the difference is the whole point of the entry.** Verified, not inferred:
+   >
+   > - **Actions is disabled on this repository.** `GET /repos/retrocraftdevops/lits/actions/permissions`
+   >   returns `{"enabled": false}`, and the run history is empty — **zero workflow runs, ever**.
+   >   A workflow file in the tree is not a gate; nothing has executed it.
+   > - **The step is unpushed anyway.** The `validate.yml` revision carrying
+   >   `check-standards-parity.py` is on a local commit; `origin/main`'s copy of that file has no
+   >   parity step at all. Even with Actions on, the remote has nothing to run.
+   > - **The fallback is also down.** The consolation was "FuroField's CI still catches it". It
+   >   does not right now: FuroField's last 30 Actions runs are **all `startup_failure` after 0s**,
+   >   with no successful run in that window. That is the known org-wide billing outage affecting
+   >   these repos, not a fault in FuroField's pipeline — but the effect on this obligation is the
+   >   same, and an outage that explains a gap does not close it.
+   >
+   > **So the honest state: drift in this repo's vocabulary is currently caught by nothing
+   > automatic — only by a human running `scripts/check-standards-parity.py`.** That is a weaker
+   > position than the pre-decision one this entry set out to improve on, because the earlier
+   > entry at least described the enforcement accurately.
+   >
+   > **What actually closes it** (both, not either): (1) enable GitHub Actions on
+   > `retrocraftdevops/lits` — which for this org means the CI outage above being resolved; and
+   > (2) push the commits carrying `scripts/check-standards-parity.py` and the `validate.yml`
+   > step, so `origin/main` holds a workflow that includes it. **Close it only against a run
+   > URL** — a green run of `validate-contract` on `main` with the parity step visible in the log,
+   > and, because a check that has never failed is not known to work, a deliberately drifted
+   > vocabulary rejected by *that pipeline* rather than by a local shell.
+
    **Decided by Rodrick, 2026-08-16: yes — this repository owns a parity step of its own.**
-   Implemented as `scripts/check-standards-parity.py`, wired into
+   Implemented as `scripts/check-standards-parity.py`, and written into
    [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) alongside
-   `scripts/validate.py`.
+   `scripts/validate.py` — **wiring that is correct and dormant**, per the re-opening above. The
+   script itself is finished work; only its automatic invocation is missing.
 
    Of the three options in the question, the answer was none of them exactly. A **wrapper** needs
    both checkouts on a runner that has one; **vendoring** the FuroField script makes a fourth copy
@@ -396,18 +429,20 @@ same change; anything that invalidates an existing register is a major version w
 treatment. Editing it in one repo alone fails that repo's parity test and every other repo's
 cross-repo check, which is the design working, not a problem to route around.
 
-**How to verify a pin — 2026-08-16, both halves now runnable.** Each of the five pins must still be
-added to the sibling registers in the same change window, but checking it is a command rather than
-an inspection. Run **both**; they answer different questions:
+**How to verify a pin — 2026-08-16, both halves now runnable, and both of them YOUR job to run.**
+Each of the five pins must still be added to the sibling registers in the same change window, but
+checking it is a command rather than an inspection. **Neither command is run by any pipeline
+today** ([follow-up 2](#follow-up-still-open)): Actions is disabled here, and FuroField's runs are
+all failing at startup. Run **both** by hand; they answer different questions:
 
 ```bash
-python3 scripts/check-standards-parity.py --require-siblings   # this repo's gate; also runs in CI
+python3 scripts/check-standards-parity.py --require-siblings   # this repo's gate — BY HAND; CI does not run it
 ~/projects/FuroField/scripts/check-standards-parity.sh         # the four-way seam-VALUE comparison
 ```
 
 The first is this repository's own gate ([follow-up 2](#follow-up-still-open)), added after Rodrick
-decided this repo should own one. In CI it runs with no siblings and says so — `PASS (SELF-CHECK
-ONLY)`, every sibling listed as `NOT COMPARED`. Locally, `--require-siblings` makes a missing
+decided this repo should own one. Once CI does run it, it will run with no siblings and say so —
+`PASS (SELF-CHECK ONLY)`, every sibling listed as `NOT COMPARED`. Locally, `--require-siblings` makes a missing
 checkout a failure, which is what you want at the moment you are adding a pin: it will not let an
 uncheckable sibling pass as an agreeing one. It fails if a pin this register declares is named by
 none of the siblings present — a pin on one side only is a claim, not a pin.

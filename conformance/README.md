@@ -3,7 +3,7 @@
 An integration is **conformant** when it implements the published contract and behaves as the
 contract requires. Conformance is checked at two levels.
 
-## 1. Contract validation (runs in CI)
+## 1. Contract validation (defined in CI; **run it by hand today**)
 
 ```bash
 python3 scripts/validate.py
@@ -12,6 +12,12 @@ python3 scripts/validate.py
 Checks every `openapi*.yaml` is valid OpenAPI 3.1, that all `$ref`s resolve, that the
 `examples/` parse, and that open source files carry an SPDX licence header. This is the gate on
 every change.
+
+> **It is not currently running automatically.** GitHub Actions is disabled on this repository
+> (`enabled: false`, zero workflow runs ever, verified 2026-08-16), so
+> [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) defines this gate but
+> nothing executes it. Run it locally before you open a change. See
+> [roadmap follow-up 2](../docs/roadmap.md#follow-up-still-open).
 
 ## 2. Live conformance
 

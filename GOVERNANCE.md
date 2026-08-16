@@ -45,10 +45,14 @@ Apache-2.0 relationship — is in [PATENTS](./PATENTS). This section is a summar
 
 - **Path-versioned, semantic policy.** Additive, backward-compatible changes are allowed within
   `/v1`; breaking changes ship only under a new `/vN`. Full rules: [CONTRIBUTING.md](./CONTRIBUTING.md).
-- **Quality gate on every change.** `scripts/validate.py` + `@redocly/cli lint`, enforced in CI
-  ([.github/workflows/validate.yml](./.github/workflows/validate.yml)), plus the conformance gate
+- **Quality gate on every change.** `scripts/validate.py` + `@redocly/cli lint`, defined in
+  [.github/workflows/validate.yml](./.github/workflows/validate.yml), plus the conformance gate
   (the conformance suite) that ties the live service to the contract so they
   cannot drift. A change that fails any gate does not merge.
+  **Caveat, verified 2026-08-16: these gates are not automatically enforced right now.** GitHub
+  Actions is disabled on this repository (zero runs, ever), so the gates must be run by hand
+  until it is enabled — see [roadmap follow-up 2](./docs/roadmap.md#follow-up-still-open).
+  "Does not merge" is currently a convention held by reviewers, not a mechanism.
 - **RFC for sovereign-impacting changes.** Anything touching identity numbering, certificate
   semantics, zone authority, the two-plane split, or personal-data fields requires an RFC decided
   by the steering committee (§2) — never by a single vendor. Smaller additive changes follow the
