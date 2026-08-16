@@ -36,6 +36,10 @@ tags:
     description: Read the immutable action log and produce signed exports.
   - name: certificates-admin
     description: Authority issuance & revocation of certificates (delegated approval).
+  - name: trust-admin
+    description: |
+      National trust anchor, Trusted List and qualified-seal certificates (RFC 0001) —
+      inspection and verification (`trust:read`), rotation and revocation (`trust:manage`).
   - name: movements-admin
     description: Movement-permit lifecycle transitions.
   - name: campaigns-admin

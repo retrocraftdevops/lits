@@ -42,6 +42,35 @@ First public draft of the open LITS contract. Current surface:
 The contract is `*-draft` and may change without a version bump until `1.0.0` is ratified with
 the competent authority (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
 
+### Fixed
+
+Contract hygiene. No path, operation, schema or field visible to a client changes — every fix
+below removes something the YAML parser was already discarding, or names something the parser
+was already keeping.
+
+- **`openapi.yaml` defined `/authorized-keepers` and `/keepers/resolve` twice** (byte-identically).
+  YAML keeps only the last mapping key, so the earlier pair was silently discarded — and
+  `@redocly/cli lint` aborted the whole run with `duplicated mapping key` before it validated
+  *either* spec, which is why the lint step reported nothing else. The second block is removed,
+  keeping the first so the three elevated reads (`/animals/{id}/movements`,
+  `/animals/{id}/health`, `/holdings/{id}`) stay contiguous. Path count is unchanged at 43,
+  because the duplicate never contributed one.
+- **Two tags were used but never declared**: `campaigns` in `openapi.yaml` and `trust-admin`
+  in `openapi-admin.yaml`. An undeclared tag still groups operations, but carries no
+  description, so generated documentation drops those operations into an untitled section.
+  Both are now declared in their spec's top-level `tags:` list.
+- **`standards/registry.yaml`: the `eudr.plot-geometry` control carried `seamPin` and `notes`
+  twice.** The duplicate `seamPin` was identical and therefore harmless, but the *first* `notes`
+  was discarded by the loader — and that was the one recording the 2026-08-01 correction of this
+  control from `implemented` down to `partial`. The register was asserting a downgraded status
+  whose stated justification had silently vanished from the loaded document. Both notes are
+  merged under the single surviving key; the `partial` status is unchanged.
+
+None of these were caught by either gate: `scripts/validate.py` does not detect duplicate YAML
+mapping keys or undeclared tags, and `@redocly/cli`'s recommended ruleset does not enable
+`operation-tag-defined` and does not lint `standards/registry.yaml` at all. Teaching the gate to
+reject a duplicate mapping key and an undeclared tag is the follow-up that keeps these fixed.
+
 ---
 
 *Pre-release development history is kept with the implementation in the private platform

@@ -72,6 +72,11 @@ tags:
     description: Movement permits / consignment records.
   - name: vaccinations
     description: Vaccination and mandatory disease events.
+  - name: campaigns
+    description: |
+      Active national vaccination campaigns (e.g. an FMD ring-vaccination during an outbreak),
+      published by the registry so a client can surface them to keepers and field officers and
+      report coverage back via `POST /vaccinations`.
   - name: zones
     description: Veterinary / FMD zone reference data (delta sync).
   - name: holdings
@@ -250,41 +255,6 @@ paths:
           description: Elevated scope not granted.
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
         '404': { $ref: '#/components/responses/NotFound' }
-
-  /authorized-keepers:
-    get:
-      tags: [keepers]
-      operationId: authorizedKeepers
-      summary: Keepers who currently authorize the calling integrator (the consented herd scope)
-      responses:
-        '200': { description: Keeper ids., content: { application/json: { schema: { type: object, properties: { count: { type: integer }, keeper_ids: { type: array, items: { type: string } } } } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /keepers/resolve:
-    post:
-      tags: [keepers]
-      operationId: resolveKeeper
-      summary: Find-or-claim a keeper by natural key
-      description: |
-        Resolves a person to the single registry keeper record, keyed on a sovereign natural
-        key (`national_id_no` and/or verified `msisdn`). Returns the existing keeper when the
-        person is already known — so an integrator never creates a second keeper for someone the
-        keeper app or another vendor already onboarded — otherwise creates and returns a new one.
-        `outcome` is `matched` or `created`. This is entity-level identity resolution, distinct
-        from the request-level `Idempotency-Key` (which only makes a single retried call safe).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/KeeperResolve' }
-      responses:
-        '200':
-          description: The resolved keeper (matched or created).
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Keeper' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /holdings/{holding_id}:
     get:

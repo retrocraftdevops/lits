@@ -301,8 +301,7 @@ controls:
       enforcing them, and no reference instance holds coordinates at six decimal
       places. Contract ahead of implementation is the divergence the seam pin
       exists to catch, so the claim is brought down to match what is true.
-    seamPin: eudr-geometry
-    notes: >-
+
       Pinned to the identical rule FuroField applies to crop plots. The
       thresholds are four hectares and six decimal places, geometry expressed as
       GeoJSON. Drift on either side is a conformance failure.
