@@ -203,6 +203,30 @@ since been taught both — see *Changed* below.
     `0002` still bare the gate exited 1 naming `rfcs/0002-dpi-interop-adapters.md`; with the
     header added it read 10 files and exited 0. A planted headerless `rfcs/0006` was caught and
     cleared the same way, so a *future* RFC cannot repeat it.
+- **RFCs 0003, 0004 and 0005 moved Draft → Accepted (2026-08-16).** Recorded here because
+  [docs/spec-governance.md](./docs/spec-governance.md) §6 makes the public changelog part of the
+  change process, and integrators sequence their own work off these. **No contract byte changed:**
+  acceptance ratifies a design, it does not ship one. `openapi.yaml` and `openapi-admin.yaml` are
+  untouched by this entry, and no schema, path or field named in any of the three RFCs exists yet.
+  - **Accepted by the steward, not by a steering committee — and the distinction is recorded
+    rather than smoothed over.** [GOVERNANCE.md](./GOVERNANCE.md) §4 assigns sovereign-impacting
+    RFCs — which all three are (zone authority and personal data; movement authority and
+    certificate semantics; personal data leaving the registry over a webhook) — to the **joint
+    steering committee**. §2 constitutes that committee **on designation**, so it does not exist
+    yet, and §2 gives the pre-designation steward the decision rights meanwhile. Each RFC's status
+    line now says exactly that, and says the committee may revisit the decision once constituted.
+    "Ratified by the steering committee" would have been the cheap wording and would have been
+    false.
+  - **No new status vocabulary was invented.** `docs/spec-governance.md` and `GOVERNANCE.md`
+    define *who* decides and *what* must accompany a change, not an RFC status vocabulary;
+    `rfcs/0002` has read **Accepted** since it was written, so that is the word used.
+  - **What is unblocked, and what is not.** [docs/roadmap.md](./docs/roadmap.md) records the three
+    steps as `accepted` and states, in the same place, that every ordering constraint survives
+    acceptance: RFC 0003 before RFC 0004 (a movement issued *under an order* needs orders to
+    exist, and 0004's permit conditions reuse 0003's `permit-condition-codes` vocabulary); the
+    event feed strictly before webhook subscriptions (the poll loop is the recovery path for a
+    lapsed or auto-disabled subscription); and `profiles/za` still last, because a profile maps
+    law onto **contract surface that exists**, and a ratified RFC is a shape, not a schema.
 
 ---
 

@@ -21,16 +21,46 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 |---|---|---|---|---|
 | 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
-| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
-| 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
+| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | **accepted** 2026-08-16 |
+| 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | **accepted** 2026-08-16 |
 | 4 | [Biosecurity attestation](#4-biosecurity-attestation) | additive | client + admin | not drafted |
 | 5 | [Sampling](#5-sampling) | additive | client + admin | not drafted |
 | 6 | [Event feed](#6-event-feed) | additive | client | drafted in RFC 0005 §2 |
-| 7 | [RFC 0005 — subscriptions](#7-rfc-0005--webhook-subscriptions) | RFC | client + admin | draft |
+| 7 | [RFC 0005 — subscriptions](#7-rfc-0005--webhook-subscriptions) | RFC | client + admin | **accepted** 2026-08-16 |
 | 8 | [`profiles/za`](#8-profilesza-south-africa) | profile | none | **approved**, sequenced last |
 
 Version numbers are **relative to this sequence**, not absolute reservations. Land the steps out
 of order and the numbers shift; the ordering constraints in each section do not.
+
+### What "accepted" changed on 2026-08-16, and what it did not
+
+Rodrick, as steward, **accepted RFCs 0003, 0004 and 0005**. Each status line records the same
+governance caveat and it is not a formality: [GOVERNANCE.md](../GOVERNANCE.md) §4 assigns
+sovereign-impacting RFCs to the **joint steering committee**, and §2 constitutes that committee
+*on designation* — so it **does not exist yet**. These are pre-designation **steward** decisions
+under §2, and the committee may revisit them when it is constituted. Recording them as
+committee ratifications would have been the easy overclaim and would have been false.
+
+**What acceptance unblocks:** steps 2, 3 and 7 are no longer gated on a decision. Work on them may
+start; they are proposals no longer.
+
+**What acceptance does not change — the ordering constraints below still hold, all of them:**
+
+- **Step 2 before step 3.** A movement issued *under an order* needs orders to exist
+  (`issued_under_order_id`), and RFC 0004's permit conditions reuse RFC 0003's
+  `permit-condition-codes` vocabulary.
+- **Step 6 before step 7**, without exception. The poll feed is the recovery path for a lapsed or
+  auto-disabled subscription; a webhook system shipped without a catch-up loop is unrecoverable,
+  and RFC 0005's own acceptance does not relax this.
+- **Step 8 (`profiles/za`) last.** A profile maps a jurisdiction's law onto **contract surface that
+  must already exist**. Accepting 0003 and 0004 gives that surface a *ratified shape* to cite, not
+  an implemented one — the schemas below still have to land before a profile can point at a named
+  field and be checkable rather than aspirational.
+- Steps 4 and 5 are unchanged: still not drafted, still sequenced where they were.
+
+**Acceptance is not implementation.** Nothing in steps 2, 3 or 7 has landed; no contract byte
+changed with these decisions. A step is still a proposal until it ships and appears in the
+[changelog](../CHANGELOG.md) — acceptance moves it from *undecided* to *decided and unbuilt*.
 
 Everything in steps 1–7 is **additive within `/v1`**. No step here requires a `/v2`
 ([CONTRIBUTING.md](../CONTRIBUTING.md), "Change policy"). Two items are additive in form but not
@@ -274,6 +304,8 @@ asserted end to end).
 
 ## 2. RFC 0003 — disease response orders
 
+**Accepted 2026-08-16** by the steward (pre-designation, per the caveat above); **not implemented.**
+
 [rfcs/0003-disease-response-orders.md](../rfcs/0003-disease-response-orders.md). QuarantineOrder +
 StandstillOrder + animal trace flags. Orders authored on the admin plane, read by clients as a
 versioned delta mirroring `/zones`; no jurisdiction's arithmetic in the contract (pinned
@@ -292,6 +324,8 @@ contract says so and refuses (`422 sections_not_declared`) rather than issuing a
 ---
 
 ## 3. RFC 0004 — movement pre-authorization
+
+**Accepted 2026-08-16** by the steward (pre-designation, per the caveat above); **not implemented.**
 
 [rfcs/0004-movement-pre-authorization.md](../rfcs/0004-movement-pre-authorization.md). Completes
 the machinery `3b8e917` established rather than revisiting it — clients still only *lodge*. Adds
@@ -365,6 +399,10 @@ breaking change requiring `/v2`.
 
 ## 7. RFC 0005 — webhook subscriptions
 
+**Accepted 2026-08-16** by the steward (pre-designation, per the caveat above); **not implemented.**
+Acceptance does **not** license shipping this before step 6 — see the ordering rule below, which is
+the reason RFC 0005 was split into a feed half and a subscription half in the first place.
+
 [rfcs/0005-event-feed-and-subscriptions.md](../rfcs/0005-event-feed-and-subscriptions.md) §4.
 Integrator-key-scoped subscriptions, HMAC-signed reusing RFC 0002's convention, at-least-once
 delivery, retry with auto-disable, operator force-disable on the admin plane. Plus the keeper
@@ -386,6 +424,13 @@ decision, and personal data over a channel the contract cannot secure (RFC 0005 
 because it is low value, but because a profile's job is to map a jurisdiction's legal basis onto
 **real contract surface**, and half of what a South African profile needs to cite does not exist
 yet.
+
+**Their acceptance on 2026-08-16 does not move this step forward, and that is the point.** An
+accepted RFC has a *ratified* shape, not an *implemented* one: there is still no
+`QuarantineOrder` schema, no `GET /v1/movements/{permit_reference}`, no `MovementPermit` in
+`openapi.yaml` for a profile to name. A profile citing a schema that exists only in an RFC is a
+profile citing an intention, which is the failure mode this ordering exists to avoid. This step
+unblocks when steps 2 and 3 **land**, not when they are decided.
 
 A profile written now could describe the mandate and the identifier scheme, and would have to
 hand-wave exactly the parts that matter most: which contract object carries a quarantine, which

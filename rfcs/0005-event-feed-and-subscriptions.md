@@ -4,9 +4,15 @@ SPDX-License-Identifier: Apache-2.0
 -->
 # RFC 0005 — Event feed and webhook subscriptions
 
-- **Status:** Draft (pending steering-committee ratification per GOVERNANCE.md §4 "RFC for
-  sovereign-impacting changes" — the subscription half touches **personal data**, because it
-  sends facts about named keepers' animals to an endpoint the registry does not control).
+- **Status:** **Accepted 2026-08-16** by the steward (Rodrick Makore). Sovereign-impacting under
+  [GOVERNANCE.md](../GOVERNANCE.md) §4 — the subscription half touches **personal data**, because
+  it sends facts about named keepers' animals to an endpoint the registry does not control — and
+  §4 assigns such RFCs to the joint steering committee. **That committee does not exist yet**: §2
+  constitutes it *on designation*, so until then the steward holds the decision rights and this is
+  recorded as a **pre-designation steward decision** which the committee may revisit. Acceptance
+  ratifies the design, not an implementation: nothing here has landed, and the **ordering
+  constraint in §6 / roadmap step 7 (feed strictly before subscriptions) is not relaxed by
+  acceptance** — see [../docs/roadmap.md](../docs/roadmap.md).
 - **Affects:** `openapi.yaml` (client) 2.2.0 → 2.3.0 for the feed; the subscription surface adds
   to `openapi.yaml` and `openapi-admin.yaml` 1.6.0-draft → 1.7.0-draft. (Numbers assume the
   roadmap order; they are relative to it, not absolute reservations.)

@@ -4,9 +4,14 @@ SPDX-License-Identifier: Apache-2.0
 -->
 # RFC 0004 — Movement pre-authorization (reading the permit a client lodged)
 
-- **Status:** Draft (pending steering-committee ratification per GOVERNANCE.md §4 "RFC for
-  sovereign-impacting changes" — this touches **movement authority** and **certificate
-  semantics**).
+- **Status:** **Accepted 2026-08-16** by the steward (Rodrick Makore). Sovereign-impacting under
+  [GOVERNANCE.md](../GOVERNANCE.md) §4 — it touches **movement authority** and **certificate
+  semantics** — and §4 assigns such RFCs to the joint steering committee. **That committee does
+  not exist yet**: §2 constitutes it *on designation*, so until then the steward holds the
+  decision rights and this is recorded as a **pre-designation steward decision** which the
+  committee may revisit. Acceptance ratifies the design; the contract surface below is **not yet
+  implemented** — see [../docs/roadmap.md](../docs/roadmap.md) for the sequence and
+  [../CHANGELOG.md](../CHANGELOG.md) for what has actually landed.
 - **Affects:** `openapi.yaml` (client) 2.1.0 → 2.2.0, `openapi-admin.yaml` 1.5.0-draft →
   1.6.0-draft. (If this lands before RFC 0003, read those as 2.0.0 → 2.1.0 and 1.4.0-draft →
   1.5.0-draft.)

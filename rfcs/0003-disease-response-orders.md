@@ -4,9 +4,16 @@ SPDX-License-Identifier: Apache-2.0
 -->
 # RFC 0003 — Disease response orders (quarantine, standstill, trace flags)
 
-- **Status:** Draft (pending steering-committee ratification per GOVERNANCE.md §4 "RFC for
-  sovereign-impacting changes" — this touches **zone authority**, the **two-plane split**, and
-  **personal data**, because a flag on an animal is attributable to its keeper).
+- **Status:** **Accepted 2026-08-16** by the steward (Rodrick Makore). This is a
+  sovereign-impacting RFC — it touches **zone authority**, the **two-plane split**, and
+  **personal data**, because a flag on an animal is attributable to its keeper — so
+  [GOVERNANCE.md](../GOVERNANCE.md) §4 assigns it to the joint steering committee. **That
+  committee does not exist yet**: §2 constitutes it *on designation*, and until then the steward
+  holds the decision rights. Acceptance is therefore recorded as a **pre-designation steward
+  decision**, and the committee, once constituted, may revisit it. Accepting the RFC ratifies the
+  design; the contract surface below is **not yet implemented** — see
+  [../docs/roadmap.md](../docs/roadmap.md) for the sequence and
+  [../CHANGELOG.md](../CHANGELOG.md) for what has actually landed.
 - **Affects:** `openapi.yaml` (client) 2.0.0 → 2.1.0, `openapi-admin.yaml` 1.4.0-draft →
   1.5.0-draft.
 - **Backwards compatibility:** Additive only, within `/v1`. No field is removed, renamed or made
