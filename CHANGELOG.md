@@ -4,6 +4,141 @@ All notable changes to the **LITS API contract** are recorded here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The contract is versioned in the URL
 path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
+## [2.2.0] — 2026-08-16
+
+### Added
+
+**Disease response orders — quarantine, standstill, and animal trace flags.** The client half of
+[RFC 0003](./rfcs/0003-disease-response-orders.md), accepted by the steward on 2026-08-16 as a
+**pre-designation decision** ([GOVERNANCE.md](./GOVERNANCE.md) §2 constitutes the joint steering
+committee *on designation*, so it does not exist yet and may revisit this). Minor release: new
+endpoint, new schemas, one new enum value on an existing field, two new optional response fields.
+
+**What was missing.** The contract could already record that an animal is **sick**
+(`POST /v1/disease-cases`, `POST /v1/lab-results`) and that an area is **restricted**
+(`GET /v1/zones`). It carried no way to express the thing sitting between those two facts that
+actually stops a truck: **the order**. That decision lived in a paper notice served on the keeper
+and — if the officer thought to do it — a zone, and a client could read neither. So a farm app
+whose keeper was under quarantine would lodge a movement, show the keeper a permit reference, and
+let the stock leave. The registry knew the holding was closed; the contract never told anyone.
+
+**What landed in `openapi.yaml`:**
+
+- **New** `GET /v1/quarantine-orders?since_version=&country_code=&limit=` → `QuarantineOrderDelta`.
+  It is **`/zones`'s shape field for field**, on purpose rather than for want of imagination: the
+  consuming device is a phone on intermittent connectivity that must sync a small delta and then
+  enforce **offline**, and every deployed consumer already has code for this cursor. No elevated
+  scope — an order the client cannot read is an order the client cannot enforce.
+- **New** `QuarantineOrder`, `QuarantineOrderDelta`, `OrderMilestone`, `OrderCondition`,
+  `TraceFlag`, and the five vocabularies they carry as named components so each is stated once:
+  `OrderType`, `OrderStatus`, `OrderScope`, `OrderMilestoneCode`, `OrderConditionCode`,
+  `TraceFlagCode`.
+- **Changed** `Zone.zone_type` — gains `standstill`. See "not free" below.
+- **Added** optional `trace_flags` to `AnimalRecord` (`GET /v1/animals/{national_id}`) and to
+  `AnimalHealthStatus` (`GET /v1/animals/{id}/health`, `health:read`).
+
+**Three design decisions worth stating, because each had a cheaper wrong answer:**
+
+1. **No jurisdiction's arithmetic is in the contract.** It is tempting to say a quarantine lasts
+   *n* days. The periods differ by territory and by disease and change by gazette, so hard-coding
+   any one country's numbers would quietly make the standard that country's — and a national
+   instance would have to fork it to obey its own law, which is the exact outcome
+   vendor-neutrality exists to prevent. The contract therefore carries **dates and their meaning**
+   (`milestones[{code, date}]`, pinned code vocabulary) and never the rule that produced them.
+   **Each profile states which milestones its law requires and how they are derived.**
+2. **A standstill is projected into the zone feed.** An active standstill order also appears in
+   `GET /v1/zones` as `zone_type: standstill` with `movement_restriction: blocked`. The payoff is
+   the whole reason the shape was chosen: **an already-deployed client enforces a national
+   standstill with zero client changes**, on its next zone sync, because it is reading a field it
+   has always read. Outbreak response is measured in hours; a coordinated release across every
+   accredited vendor is measured in weeks. The order is the record and the zone is the view —
+   it is never authored through `/admin/zones` (which is why `ZoneWrite` did **not** gain the
+   value), lifting the order retracts the zone by the same mechanism that declared it, and
+   `projected_zone_code` lets a client reading both feeds join them instead of counting one
+   restriction as two.
+3. **Trace flags are registry-applied only.** There is no client write path and that is the point,
+   not an oversight: a lifelong mark on a keeper's animal is a determination with real economic
+   consequence for a named person, so it must carry an officer, a legal basis and an audit entry,
+   and be appealable. A farm app that could stamp it would exercise authority it does not have and
+   the audit trail would record a vendor key instead of a decision-maker. `expires_at: null` is
+   documented in the schema as meaning **lifelong**, because the alternative reading — "not yet
+   set" — fails in exactly the wrong direction.
+
+**Additive in form. Two items are not additive in EFFECT, and are called out rather than glossed:**
+
+- **`Zone.zone_type: standstill`.** `zone_type` is `required` on `Zone`, so a new value is a
+  widening for the server and therefore a **tightening for every reader**. A client that switches
+  exhaustively on `zone_type` with no default branch can break on it. It is judged acceptable
+  because the load-bearing field for enforcement is `movement_restriction`, which is unchanged and
+  whose values are unchanged, and gating on `movement_restriction: blocked` is what the
+  integration guide already tells clients to do. The field description now says so in the
+  contract, and a conformance case asserts a client tolerates an unknown `zone_type`.
+- **`OrderConditionCode` is a fail-closed vocabulary.** A client meeting a code it does not
+  recognise MUST treat the order as at least as restrictive as `no_movement_on_off`. This inverts
+  [CONTRIBUTING.md](./CONTRIBUTING.md)'s additive-enum rule ("new enum value that clients may
+  ignore"), and the inversion is deliberate: for a *restriction* vocabulary, ignoring what you do
+  not understand permits a movement the authority forbade. The consequence is that **adding a
+  condition code later is not a free additive change** — it moves deployed clients from permitting
+  to blocking on their next sync, needs a minor bump and integrator notice, and is safe only in
+  that direction.
+
+**`draft` is deliberately absent from the client `OrderStatus`.** RFC 0003 §8 sketches one status
+enum for both planes, but §2 annotates the *admin* read as "incl. drafts" — which is only
+meaningful as a contrast with the client feed. A client never sees an order the authority has not
+yet made, exactly as `MovementLifecycleStatus` omits the control plane's `draft`. The pinned
+`order-status` vocabulary remains the full six values; the client feed publishes five of them.
+
+**Covered by checks proven able to fail.** Three new examples —
+`examples/quarantine-order-delta.response.json` (→ `QuarantineOrderDelta`),
+`examples/standstill-zone-delta.response.json` (→ `ZoneDelta`) and
+`examples/animal-health-trace-flags.response.json` (→ `AnimalHealthStatus`) — are validated by
+`scripts/validate.py`'s example-conformance check. **Before** they were mapped, the gate exited 1
+naming all three as validated by nothing, so the map is not optional. **After**, eight regressions
+were planted in a scratch copy — nothing in the repo was mutated — and every one was caught,
+naming the exact path:
+
+| Planted regression | Caught at |
+|---|---|
+| `Zone.zone_type` loses `standstill` | `standstill-zone-delta…zones[0].zone_type` |
+| `TraceFlagCode` loses `sero_positive_lifelong` | `animal-health-trace-flags…trace_flags[0].code` |
+| `TraceFlag.expires_at` stops being nullable | `animal-health-trace-flags…trace_flags[0].expires_at` |
+| `OrderMilestoneCode` loses `day_zero` | `quarantine-order-delta…orders[0].milestones[0].code` |
+| `OrderStatus` loses `lifted` | `quarantine-order-delta…orders[2].status` |
+| `OrderConditionCode` loses `no_movement_on_off` | `quarantine-order-delta…orders[0].conditions[0].code` |
+| `OrderType` loses `standstill` | `quarantine-order-delta…orders[1].order_type` |
+| example drops the required cursor `order_version` | `quarantine-order-delta…orders[0]` |
+
+The `lifted` case is the one that makes "a retracted order stays in the delta" testable rather
+than asserted, and the nullable-`expires_at` case does the same for "null means lifelong".
+
+> **Stated limits, so they are not discovered later.**
+>
+> - **The example check binds an example to a NAMED schema, not to a reference.** A ninth
+>   regression was planted — re-pointing `QuarantineOrderDelta.orders.items` at a bare
+>   `type: object`, orphaning `QuarantineOrder` — and it **passed, exit 0**. This is the same
+>   limit recorded at `2.1.1` and it now covers more surface, because this release adds eleven
+>   schemas that are reachable only through `$ref`s. Closing it needs the "every declared schema
+>   is referenced" check in [roadmap follow-up 4](./docs/roadmap.md#follow-up-still-open), which
+>   still cannot land while `CertificateRevocation` is a genuine orphan.
+> - **`AnimalRecord` is an `allOf`, and the example checker does not understand `allOf`.** An
+>   example mapped to it would be validated by a pass that inspects nothing — a green measuring
+>   zero. That is why the trace-flag example is bound to `AnimalHealthStatus`, a plain object,
+>   where the recursion genuinely reaches `trace_flags[].code`. **`AnimalRecord.trace_flags` is
+>   therefore contract surface with no example-level gate behind it**; it is covered only by the
+>   live conformance case.
+> - **The three new seam pins are NOT yet entered in the sibling registers, so they are not
+>   declared here either.** See "Not shipped" below.
+
+**Not shipped in this release, and owed:**
+
+- The seam pins `order-status`, `trace-flag-codes` and `permit-condition-codes` are **not** added
+  to `standards/registry.yaml`. Adding a pin here that no sibling names is precisely what
+  `scripts/check-standards-parity.py` check 5 refuses — *"a pin that exists on one side only is
+  not a pin; it is a claim"* — and the sibling halves (FuroTrack, Dzinza) are outside this
+  change's scope. The pin lands in the same change window as the sibling register entries, not
+  before. `standards/vocabulary.v1.json` needs **no** edit for any of them: a `seamPin` is a value
+  recorded on a control, not a schema change.
+
 ## [2.1.1] — 2026-08-16
 
 ### Fixed

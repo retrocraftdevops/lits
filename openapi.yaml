@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS — Livestock Identification & Traceability System
-  version: 2.1.1
+  version: 2.2.0
   summary: Vendor-neutral national livestock registry API (the source of truth).
   description: |
     LITS is the national registry of record for livestock **identity**, **movement**
@@ -35,7 +35,10 @@ info:
     the required scope — a client cannot self-elevate.
 
     Standard integrator endpoints (`/animals`, `/movements`, `/vaccinations`, `/certificates`,
-    `/zones`, `/campaigns`, `/disease-cases`, `/lab-results`) need no special scope. Elevated scopes:
+    `/zones`, `/quarantine-orders`, `/campaigns`, `/disease-cases`, `/lab-results`) need no
+    special scope. `/quarantine-orders` is deliberately in that list: an order the client cannot
+    read is an order the client cannot enforce, and a restriction that only privileged keys can
+    see does not stop a truck. Elevated scopes:
 
     | Scope | Endpoint |
     |---|---|
@@ -79,6 +82,12 @@ tags:
       report coverage back via `POST /vaccinations`.
   - name: zones
     description: Veterinary / FMD zone reference data (delta sync).
+  - name: orders
+    description: |
+      Disease response orders — quarantine and standstill (delta sync). **Read-only on this
+      plane.** An order is an act of the State: it is authored on the control plane by a
+      veterinary officer, and a client never mints one. What a client does is read the order and
+      obey it.
   - name: holdings
     description: |
       Holding (premises) detail with geolocation and EUDR compliance flags. Elevated scope required
@@ -581,6 +590,56 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ZoneDelta' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /quarantine-orders:
+    get:
+      tags: [orders]
+      operationId: getQuarantineOrders
+      summary: Disease response orders — quarantine & standstill (delta sync)
+      description: |
+        Returns orders whose `order_version` is greater than `since_version`, plus the current
+        `server_version`. Clients persist `server_version` and pass it back on the next call for
+        an incremental delta.
+
+        **This is `/zones`'s shape, field for field, and that is deliberate.** The consuming
+        device is a phone in a district with intermittent connectivity: it must sync a small
+        delta when it can and then enforce **offline**, and a monotonic integer is the only
+        cursor that survives that honestly. Every deployed consumer already has code for this
+        shape.
+
+        **A lifted or revoked order stays in the feed**, carrying that `status`, rather than
+        disappearing from it. A feed that answers "what changed" by omission cannot tell a client
+        the difference between "lifted" and "you have not synced recently", and the client would
+        keep enforcing a lifted order forever. Retraction is a positive statement.
+
+        **A standstill order is also projected into `GET /v1/zones`** as a zone with
+        `zone_type: standstill` and `movement_restriction: blocked`. A client that has never
+        heard of this endpoint therefore enforces a national standstill on its next zone sync,
+        with no client change — which is the point, because outbreak response is measured in
+        hours and a coordinated release across every accredited vendor is measured in weeks. The
+        order is the record and the zone is the view; `projected_zone_code` names the zone, so a
+        client reading both feeds joins them instead of counting one restriction twice.
+      parameters:
+        - name: since_version
+          in: query
+          required: false
+          schema: { type: integer, format: int64, default: 0 }
+        - name: country_code
+          in: query
+          required: false
+          schema: { type: string, default: ZW }
+        - name: limit
+          in: query
+          required: false
+          description: Maximum orders to return in one page. The cursor is `since_version`, not an offset.
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 500 }
+      responses:
+        '200':
+          description: Order delta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuarantineOrderDelta' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /campaigns:
@@ -1217,6 +1276,13 @@ components:
             status: { type: string, enum: [active, slaughtered, dead, exported, lost] }
             registered_at: { type: string, format: date-time }
             current_holding_id: { type: string }
+            trace_flags:
+              type: array
+              description: |
+                Registry-applied flags that follow this animal. Absent or empty means none are
+                recorded — never that none were checked. Read-only: there is no client path by
+                which one can be written.
+              items: { $ref: '#/components/schemas/TraceFlag' }
 
     KeeperResolve:
       type: object
@@ -1440,7 +1506,21 @@ components:
       properties:
         zone_code: { type: string, examples: [ZW-FMD-RED-SE] }
         zone_name: { type: string }
-        zone_type: { type: string, enum: [fmd_free, fmd_protection, fmd_infected, surveillance] }
+        zone_type:
+          type: string
+          enum: [fmd_free, fmd_protection, fmd_infected, surveillance, standstill]
+          description: |
+            `standstill` is a **projection, not a declaration**. It appears when an active
+            standstill order (`GET /v1/quarantine-orders`) covers this territory; the order is the
+            record and this zone is its view. It is never authored through the control plane's
+            zone endpoints, and lifting the order retracts it by setting `effective_until` and
+            bumping `zone_version` — so the retraction propagates by the same mechanism as the
+            declaration. `QuarantineOrder.projected_zone_code` names this zone.
+
+            **Do not switch exhaustively on `zone_type`.** It is descriptive — used for labelling
+            and colour. The load-bearing field for enforcement is `movement_restriction`, whose
+            values are unchanged; a client that gates on `movement_restriction: blocked`, which is
+            what the integration guide tells clients to do, is unaffected by any value added here.
         movement_restriction: { type: string, enum: [none, restricted, blocked] }
         country_code: { type: string, default: ZW }
         registry: { type: string, default: zlits }
@@ -1450,6 +1530,245 @@ components:
         zone_version: { type: integer, format: int64 }
         effective_from: { type: string, format: date }
         effective_until: { type: [string, 'null'], format: date }
+
+    QuarantineOrderDelta:
+      type: object
+      required: [server_version, orders]
+      properties:
+        server_version:
+          type: integer
+          format: int64
+          description: Highest order_version in the registry. Persist it and pass it back as since_version.
+        orders_returned: { type: integer }
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/QuarantineOrder' }
+
+    QuarantineOrder:
+      type: object
+      description: |
+        An act of authority that closes a holding, a section, an animal or an area — the fact that
+        sits between "this animal is sick" and "this truck does not leave". Before this schema
+        existed the decision lived in a paper notice served on the keeper and, if the officer
+        thought to do it, a zone; a client could read neither, so a farm app whose keeper was
+        under quarantine would cheerfully lodge a movement and let the stock leave.
+
+        **Read-only on this plane.** Authored on the control plane.
+
+        **The contract carries dates and their meaning, never the rule that produced them.** See
+        `milestones`.
+      required: [order_id, order_type, status, scope, subject_id, order_version, country_code, effective_from]
+      properties:
+        order_id: { type: string, examples: [ZW-QO-2026-000412] }
+        order_type: { $ref: '#/components/schemas/OrderType' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        scope: { $ref: '#/components/schemas/OrderScope' }
+        subject_id:
+          type: string
+          description: 'holding_id | section_id | national_id | zone_code, per `scope`.'
+        section_id:
+          type: [string, 'null']
+          description: |
+            Set when `scope` is `section`. Section scope is valid only where the holding has an
+            accepted biosecurity attestation declaring its sections — you cannot quarantine the
+            north shed of a holding that has never told the registry it has sheds. That attestation
+            surface does not exist yet, so `scope: section` is **specified and not issuable**: the
+            control plane refuses to author one with `422 sections_not_declared` rather than
+            issuing an order it cannot describe.
+        disease:
+          type: string
+          description: WOAH vocabulary, as on DiseaseCaseReport.disease.
+        disease_case_id:
+          type: [string, 'null']
+          description: The disease case that prompted the order, where there is one.
+        order_version:
+          type: integer
+          format: int64
+          description: Monotonic. This is the delta cursor — every change to the order bumps it.
+        country_code: { type: string, default: ZW }
+        declared_verbally_at:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            When a veterinary officer told the keeper, at the gate, that nothing leaves. In the
+            field the verbal order comes first and the written instrument follows — sometimes days
+            later, and in an outbreak reliably later. A contract that modelled only the written
+            instrument would be blind during the first forty-eight hours, which is the window that
+            decides whether the outbreak is contained.
+
+            Whether a verbal order is enforceable before written confirmation is a **statutory**
+            question, and the contract does not decide it: each profile states what its territory's
+            law requires. An order with neither this timestamp nor `confirmed_in_writing_at` cannot
+            be `active`.
+        confirmed_in_writing_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the written instrument was served. See declared_verbally_at.
+        effective_from: { type: string, format: date-time }
+        effective_until: { type: [string, 'null'], format: date-time }
+        milestones:
+          type: array
+          description: |
+            Dates the registry computed under its own territory's profile, each labelled with what
+            it means. **The contract carries no jurisdiction's arithmetic**: how long a quarantine
+            lasts and when a slaughter window opens differ between territories and between
+            diseases, and change by gazette without warning. Hard-coding one country's numbers into
+            an open standard would quietly make the standard that country's, and a national instance
+            would then have to fork it to obey its own law.
+
+            So the client renders and acts on these dates without knowing the rule that produced
+            them — a client shows "review due 12 March" because the registry said so, not because
+            it re-derived it from a stale copy of the rules and got a different answer.
+          items: { $ref: '#/components/schemas/OrderMilestone' }
+        conditions:
+          type: array
+          description: What the order requires, as codes. See OrderCondition for the fail-closed rule.
+          items: { $ref: '#/components/schemas/OrderCondition' }
+        issuing_authority: { type: string }
+        issuing_officer_ref:
+          type: string
+          description: |
+            Officer identifier, **not** a personal name. The audit trail needs to resolve to a
+            person; this feed — readable by every accredited integrator — does not need to publish
+            which named official closed which named farm.
+        legal_basis:
+          type: string
+          description: Profile-supplied citation for the power exercised. The contract does not supply it.
+        gazette_reference: { type: [string, 'null'] }
+        projected_zone_code:
+          type: [string, 'null']
+          description: |
+            The zone this order projects into (`GET /v1/zones`), for a standstill. Join on it so
+            one restriction is not counted as two.
+        lifted_at: { type: [string, 'null'], format: date-time }
+        lift_reason: { type: [string, 'null'] }
+
+    OrderType:
+      type: string
+      description: |
+        `quarantine` closes a subject; `standstill` is the national "nothing moves" declaration
+        made in the first hours of an outbreak, and is additionally projected into `/v1/zones`.
+      enum: [quarantine, standstill]
+
+    OrderStatus:
+      type: string
+      description: |
+        Pinned vocabulary — seam pin `order-status`. The full lifecycle is
+        `draft | active | suspended | lifted | revoked | expired`; **`draft` is deliberately absent
+        here**, exactly as it is absent from `MovementLifecycleStatus`, because a client never sees
+        an order the authority has not yet made. Drafts are visible only on the control plane.
+
+        `lifted` and `revoked` are terminal but still published in the delta — see the endpoint
+        description for why retraction must be a positive statement.
+      enum: [active, suspended, lifted, revoked, expired]
+
+    OrderScope:
+      type: string
+      description: |
+        What the order binds. `section` is specified but not issuable until a holding can declare
+        its sections — see `QuarantineOrder.section_id`.
+      enum: [holding, section, animal, area]
+
+    OrderMilestone:
+      type: object
+      description: |
+        One date the registry computed, and what that date means. A profile that requires a
+        milestone this vocabulary lacks is the trigger to extend the vocabulary — deliberately,
+        once, for everyone — rather than to add a bespoke field for one country.
+      required: [code, date]
+      properties:
+        code: { $ref: '#/components/schemas/OrderMilestoneCode' }
+        date: { type: string, format: date }
+        note:
+          type: string
+          description: Human context. Never the machine meaning — that is what `code` is for.
+
+    OrderMilestoneCode:
+      type: string
+      description: |
+        Pinned vocabulary. Each profile states **which of these its law requires and how it is
+        derived**; the contract states only that the date exists and what it is called.
+      enum: [day_zero, slaughter_window_opens, slaughter_window_closes, review_due, lift_eligible]
+
+    OrderCondition:
+      type: object
+      description: |
+        What the order requires, machine-readable, so a client can enforce it rather than display
+        it and hope.
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/OrderConditionCode' }
+        note:
+          type: string
+          description: Human context. Never the machine meaning.
+
+    OrderConditionCode:
+      type: string
+      description: |
+        Pinned vocabulary — seam pin `permit-condition-codes`, shared with movement permits.
+
+        - `no_movement_on_off` — nothing enters, nothing leaves.
+        - `movement_by_permit_only` — movement allowed only under an issued permit.
+        - `cd_required` — cleaning & disinfection required before release. The registry carries the
+          condition and the fact that it was certified complete; the checklist, the products, the
+          operator and the photographs stay in the farm app.
+        - `sampling_required` — surveillance sampling required before lift.
+        - `section_isolation_granted` — a declared section is isolated from the rest of the holding.
+
+        **A client that meets a code it does not recognise MUST fail closed** — treat the order as
+        at least as restrictive as `no_movement_on_off`. This inverts the repo's usual additive-enum
+        rule ("clients may ignore a new value"), and the inversion is deliberate: for a
+        *restriction* vocabulary, a client that ignores what it does not understand permits a
+        movement the authority forbade. The cost of a wrongly-blocked movement is a delayed truck;
+        the cost of a wrongly-permitted one is the disease leaving the cordon.
+
+        The consequence, stated rather than discovered later: **adding a code here is not a free
+        additive change.** It moves already-deployed clients from permitting to blocking on their
+        next sync. It needs a minor version bump and integrator notice, and it is safe only in that
+        direction.
+      enum:
+        - no_movement_on_off
+        - movement_by_permit_only
+        - cd_required
+        - sampling_required
+        - section_isolation_granted
+
+    TraceFlag:
+      type: object
+      description: |
+        A fact that follows an animal, sometimes for the rest of its life — an animal that has been
+        serologically positive may never be eligible for certain markets again, whatever a later
+        test says.
+
+        **Registry-applied only. There is no client write path, and that is the point rather than
+        an oversight.** A lifelong mark on a keeper's animal is a determination with real economic
+        consequence for a named person: it must carry an officer, a legal basis and an audit entry,
+        and it must be appealable. A farm app that could stamp it would be exercising authority it
+        does not have, and the audit trail would record a vendor key instead of a decision-maker.
+      required: [code, applied_at]
+      properties:
+        code: { $ref: '#/components/schemas/TraceFlagCode' }
+        applied_at: { type: string, format: date-time }
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            **Null means lifelong** — the flag never expires and is not re-evaluated. This is stated
+            explicitly because the alternative reading of a null, "not yet set", would be
+            catastrophic in exactly the wrong direction: a client that treated it as unset would
+            drop a permanent market disqualification.
+        order_id:
+          type: [string, 'null']
+          description: The order under which the flag was applied, where there was one.
+        disease: { type: [string, 'null'] }
+        applied_by:
+          type: string
+          description: The issuing authority. Never an integrator key.
+
+    TraceFlagCode:
+      type: string
+      description: Pinned vocabulary — seam pin `trace-flag-codes`.
+      enum: [sero_positive_lifelong, quarantine_history]
 
     CampaignList:
       type: object
@@ -1667,6 +1986,14 @@ components:
           type: array
           items: { type: string }
           description: Active campaign IDs the animal is enrolled in.
+        trace_flags:
+          type: array
+          description: |
+            Registry-applied flags that follow this animal. A market-access decision made from
+            `disease_free` and `last_test_result` alone can be wrong in the permissive direction:
+            a `sero_positive_lifelong` flag outlives any later negative test, which is precisely
+            why it exists. Absent or empty means none are recorded, never that none were checked.
+          items: { $ref: '#/components/schemas/TraceFlag' }
         snapshot_at: { type: string, format: date-time, description: Timestamp of this snapshot. }
 
     HoldingDetail:

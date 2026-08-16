@@ -146,6 +146,21 @@ EXAMPLE_SCHEMAS = {
     "issue-certificate.json": "CertificateRequest",
     "zone-delta.response.json": "ZoneDelta",
     "movement-list.response.json": "MovementList",
+    "quarantine-order-delta.response.json": "QuarantineOrderDelta",
+    # Deliberately a SECOND example bound to ZoneDelta rather than an edit of the
+    # first. It carries the standstill projection, so it is the tripwire on
+    # `Zone.zone_type` gaining `standstill`: drop the enum value and this example
+    # stops conforming. Editing the existing zone example instead would have put
+    # the projection and the ordinary zones in one fixture, where a regression in
+    # either is harder to read.
+    "standstill-zone-delta.response.json": "ZoneDelta",
+    # Bound to AnimalHealthStatus, NOT to AnimalRecord, and that choice is
+    # load-bearing. `_check_value` below understands type/enum/required/properties;
+    # it does not understand `allOf`, and AnimalRecord is an allOf. An example
+    # mapped to AnimalRecord would therefore be "checked" by a pass that inspects
+    # nothing — a green that measures zero. AnimalHealthStatus is a plain object,
+    # so the recursion reaches trace_flags[].code and its enum for real.
+    "animal-health-trace-flags.response.json": "AnimalHealthStatus",
 }
 
 # bool is a subclass of int in Python, so integer/number must exclude it explicitly.

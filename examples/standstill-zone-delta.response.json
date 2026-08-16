@@ -1,0 +1,30 @@
+{
+  "server_version": 1091,
+  "zones_returned": 2,
+  "zones": [
+    {
+      "zone_code": "ZW-STANDSTILL-NATIONAL",
+      "zone_name": "National standstill (FMD)",
+      "zone_type": "standstill",
+      "movement_restriction": "blocked",
+      "country_code": "ZW",
+      "registry": "zlits",
+      "boundary_wkt": null,
+      "zone_version": 1090,
+      "effective_from": "2026-08-15",
+      "effective_until": null
+    },
+    {
+      "zone_code": "ZW-STANDSTILL-MATABELELAND-S",
+      "zone_name": "Matabeleland South standstill (FMD) — lifted",
+      "zone_type": "standstill",
+      "movement_restriction": "blocked",
+      "country_code": "ZW",
+      "registry": "zlits",
+      "boundary_wkt": "MULTIPOLYGON(((28.0 -21.5, 29.4 -21.5, 29.4 -20.2, 28.0 -20.2, 28.0 -21.5)))",
+      "zone_version": 1091,
+      "effective_from": "2026-07-28",
+      "effective_until": "2026-08-09"
+    }
+  ]
+}

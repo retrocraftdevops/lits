@@ -1,0 +1,37 @@
+{
+  "national_id": "ZW-CAT-0000123",
+  "zone_code": "ZW-FMD-RED-SE",
+  "disease_free": true,
+  "fmd_vaccinated": true,
+  "last_test_result": "negative",
+  "last_test_date": "2026-07-30",
+  "last_test_disease": "brucellosis",
+  "vaccinations": [
+    {
+      "disease": "FMD",
+      "vaccine_name": "Aftovaxpur DOE",
+      "administered_at": "2026-05-11T08:15:00Z",
+      "next_due_at": "2026-11-11T08:15:00Z"
+    }
+  ],
+  "campaign_ids": ["ZW-FMD-2026-RING-SE"],
+  "trace_flags": [
+    {
+      "code": "sero_positive_lifelong",
+      "applied_at": "2026-06-02T11:30:00Z",
+      "expires_at": null,
+      "order_id": "ZW-QO-2026-000391",
+      "disease": "brucellosis",
+      "applied_by": "Department of Veterinary Services"
+    },
+    {
+      "code": "quarantine_history",
+      "applied_at": "2026-06-02T11:30:00Z",
+      "expires_at": "2027-06-02T00:00:00Z",
+      "order_id": "ZW-QO-2026-000391",
+      "disease": "brucellosis",
+      "applied_by": "Department of Veterinary Services"
+    }
+  ],
+  "snapshot_at": "2026-08-16T10:00:00Z"
+}
