@@ -136,6 +136,22 @@ since been taught both — see *Changed* below.
     `tags:` list. Redocly's recommended ruleset does not enable `operation-tag-defined`.
   - Both were proven to fail on a planted defect and to pass again on its removal before being
     relied on. No contract file changes; this is gate-only.
+- **`scripts/validate.py` now validates every `examples/*.json` against the schema it
+  illustrates.** CONTRIBUTING.md's quality gate already *required* that examples "never drift
+  from the contract"; nothing enforced it. The parse check proves only that a file is JSON — an
+  example carrying an undeclared property, or a wrong-typed value, shipped green. Examples are
+  the first thing an integrator copies, so drift here is more expensive than almost anywhere
+  else in the repo.
+  - Checks declared **type** (including nullable type arrays), **enum** membership, **required**
+    properties and **`additionalProperties: false`**, recursing through internal `$ref`s and
+    array items — so a violation nested inside `Movement.animals[]` or `ZoneDelta.zones[]` is
+    caught, not just a top-level one.
+  - An example with **no entry** in the file→schema map is a **failure, not a skip**, so adding
+    an example cannot silently opt it out of the check.
+  - Proven in both directions before being relied on, and beyond the top level: an
+    `additionalProperties` violation, a wrong type, a missing required property nested behind a
+    `$ref`, a bad enum value, and an unmapped example each produced `FAIL`/exit 1, and each
+    restored to green. All five existing examples conform, so the check landed green.
 
 ---
 

@@ -15,8 +15,9 @@ Checks:
   3. Every internal $ref resolves, per spec.
   4. Every tag an operation references is declared in the top-level `tags:` list.
   5. Every examples/*.json file parses.
-  6. The standards register conforms to the shared control vocabulary.
-  7. Every open, comment-capable artifact carries an SPDX licence header.
+  6. Every examples/*.json file conforms to the schema it illustrates.
+  7. The standards register conforms to the shared control vocabulary.
+  8. Every open, comment-capable artifact carries an SPDX licence header.
 """
 from __future__ import annotations
 
@@ -133,6 +134,123 @@ def check_tags_declared(yaml_mod) -> None:
     if problems:
         fail("undeclared tag(s):\n  " + "\n  ".join(problems))
     print(f"OK tags: {checked} operation tag reference(s), all declared")
+
+
+# Which schema each published example illustrates. An example with no entry here
+# is a FAILURE, not a skip — otherwise adding an example silently opts it out of
+# the check, which is the hole this closes.
+EXAMPLE_SCHEMAS = {
+    "register-animal.json": "AnimalRegistration",
+    "record-movement.json": "Movement",
+    "record-vaccination.json": "Vaccination",
+    "issue-certificate.json": "CertificateRequest",
+    "zone-delta.response.json": "ZoneDelta",
+}
+
+# bool is a subclass of int in Python, so integer/number must exclude it explicitly.
+_JSON_TYPES = {
+    "string": lambda v: isinstance(v, str),
+    "boolean": lambda v: isinstance(v, bool),
+    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "object": lambda v: isinstance(v, dict),
+    "array": lambda v: isinstance(v, list),
+    "null": lambda v: v is None,
+}
+
+
+def _resolve_schema(schema: object, doc: dict) -> object:
+    """Follow internal $refs. Bounded, so a circular $ref cannot hang the gate."""
+    for _ in range(20):
+        if not (isinstance(schema, dict) and isinstance(schema.get("$ref"), str)):
+            return schema
+        ref = schema["$ref"]
+        if not ref.startswith("#/"):
+            return schema
+        cur: object = doc
+        for part in ref[2:].split("/"):
+            part = part.replace("~1", "/").replace("~0", "~")
+            if not isinstance(cur, dict) or part not in cur:
+                return schema
+            cur = cur[part]
+        schema = cur
+    return schema
+
+
+def _check_value(value: object, schema: object, doc: dict, where: str, problems: list) -> None:
+    """Structural conformance: declared type, enum membership, required, additionalProperties."""
+    schema = _resolve_schema(schema, doc)
+    if not isinstance(schema, dict):
+        return
+
+    declared = schema.get("type")
+    if declared is not None:
+        types = declared if isinstance(declared, list) else [declared]
+        if not any(_JSON_TYPES.get(t, lambda _v: True)(value) for t in types):
+            got = "null" if value is None else type(value).__name__
+            problems.append(f"{where}: expected type {'|'.join(str(t) for t in types)}, got {got}")
+            return
+
+    choices = schema.get("enum")
+    if isinstance(choices, list) and value not in choices:
+        problems.append(f"{where}: value {value!r} is not one of {choices}")
+
+    if isinstance(value, dict):
+        props = schema.get("properties") or {}
+        for name in schema.get("required") or []:
+            if name not in value:
+                problems.append(f"{where}: missing required property {name!r}")
+        if schema.get("additionalProperties") is False:
+            for extra in sorted(set(value) - set(props)):
+                problems.append(
+                    f"{where}: property {extra!r} is not declared in the schema, "
+                    f"which sets additionalProperties: false"
+                )
+        for key, item in value.items():
+            if key in props:
+                _check_value(item, props[key], doc, f"{where}.{key}", problems)
+    elif isinstance(value, list):
+        items = schema.get("items")
+        if items is not None:
+            for index, item in enumerate(value):
+                _check_value(item, items, doc, f"{where}[{index}]", problems)
+
+
+def check_examples_conform(yaml_mod) -> None:
+    """Every published example must satisfy the schema it illustrates.
+
+    CONTRIBUTING.md already requires this ("update any affected `examples/*.json`
+    so they never drift from the contract") — until now nothing enforced it. The
+    parse check above proves only that an example is JSON, so an example could
+    carry an undeclared property, or a wrong-typed value, and ship green. The
+    examples are the first thing an integrator copies, which makes drift here
+    more expensive than drift almost anywhere else in the repo.
+    """
+    doc = yaml_mod.safe_load((ROOT / "openapi.yaml").read_text())
+    schemas = ((doc or {}).get("components") or {}).get("schemas") or {}
+
+    problems: list[str] = []
+    checked = 0
+
+    for path in sorted((ROOT / "examples").glob("*.json")):
+        schema_name = EXAMPLE_SCHEMAS.get(path.name)
+        if schema_name is None:
+            problems.append(
+                f"{path.name}: no entry in EXAMPLE_SCHEMAS, so this example is validated by "
+                f"nothing — map it to the schema it illustrates"
+            )
+            continue
+        if schema_name not in schemas:
+            problems.append(
+                f"{path.name}: mapped to schema {schema_name!r}, which openapi.yaml does not define"
+            )
+            continue
+        _check_value(json.loads(path.read_text()), schemas[schema_name], doc, path.name, problems)
+        checked += 1
+
+    if problems:
+        fail("example(s) do not conform to the contract:\n  " + "\n  ".join(problems))
+    print(f"OK examples conform: {checked} payload(s) validated against their schemas")
 
 
 def validate_spec(path: Path, yaml_mod) -> None:
@@ -377,6 +495,9 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             fail(f"invalid JSON {path}: {exc}")
     print(f"OK examples: {len(examples)} JSON payload(s) parse")
+
+    # Parsing only proves it is JSON. This proves it is the contract's JSON.
+    check_examples_conform(yaml)
 
     validate_standards_register(yaml)
     check_license_headers()

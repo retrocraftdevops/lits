@@ -19,7 +19,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate); 4 follow-ups open |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×2); 3 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
@@ -57,7 +57,7 @@ green, and the planted duplicate **silently swallowed real contract surface** on
 printed OK. A gate that cannot see a defect which *deletes contract from the published document*
 is not a gate.
 
-Two checks added, both proven red-then-green before being trusted:
+Three checks added across two rounds, each proven red-then-green before being trusted:
 
 1. **No duplicated mapping key** in `openapi.yaml`, `openapi-admin.yaml` or
    `standards/registry.yaml`. It runs *first*, because every other check in the gate reads the
@@ -67,25 +67,28 @@ Two checks added, both proven red-then-green before being trusted:
 2. **Every operation tag is declared** in its spec's top-level `tags:` list, both specs.
    Redocly's recommended ruleset does not enable `operation-tag-defined`, so this is the only
    place it is checked.
+3. **Every `examples/*.json` conforms to the schema it illustrates** — declared type (including
+   nullable type arrays), enum membership, required properties and `additionalProperties: false`,
+   recursing through internal `$ref`s and array items. This enforces an obligation the repo had
+   already committed to in writing (CONTRIBUTING.md's quality gate: examples "never drift from the
+   contract") and that nothing checked: the parse step proves only that a file is JSON, so an
+   example carrying an undeclared property or a wrong-typed value shipped green. An example with
+   **no entry** in the file→schema map fails rather than skipping, so a new example cannot opt
+   itself out. All five existing examples conform, so it landed green.
+
+   *Known limit, stated rather than discovered later:* the check enforces
+   `additionalProperties: false` only where a schema declares it. All eight top-level request
+   schemas do; the nested `MovementSubject` (used by `Movement.animals[]`) does not, so an
+   undeclared property inside a movement's animal entry is legal per the contract and is
+   correctly not flagged. Whether that omission is deliberate is a question for the steward.
 
 ### Follow-up still open
 
-Four things exposed but **not** fixed. None blocks the next step, and all should be resolved
-before the contract is presented as ratifiable:
+Three things exposed but **not** fixed. None blocks the next step, and all should be resolved
+before the contract is presented as ratifiable. (A fourth — examples never checked against their
+schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
 
-1. **`examples/*.json` are never checked against the schemas they illustrate.** The gate checks
-   only that each example **parses as JSON**. Measured, not assumed: an example given a field that
-   violates `additionalProperties: false`, and an example given a wrong-typed value
-   (`cold_chain_ok: "not a boolean"`), both leave `validate.py` reporting `OK examples: 5 JSON
-   payload(s) parse` and exiting 0; only genuinely malformed JSON fails it. So CONTRIBUTING.md's
-   quality-gate item 3 — "update any affected `examples/*.json` so they never drift from the
-   contract" — is an instruction enforced by nothing, and the examples are the first thing an
-   integrator copies. **This is cheap to close:** all five examples were checked by hand against
-   their schemas (`AnimalRegistration`, `Movement`, `Vaccination`, `CertificateRequest`,
-   `ZoneDelta`) and all five currently conform, so adding the check would land green rather than
-   opening a cleanup.
-
-2. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
+1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
    stopped reporting anything at all. With it removed, the run completes and surfaces 101 uses of
    the OpenAPI 3.0 `nullable` keyword in `openapi-admin.yaml` (invalid in 3.1, where the form is
@@ -93,7 +96,7 @@ before the contract is presented as ratifiable:
    descriptions in `openapi.yaml` where an unquoted `,` splits the mapping. These were **not**
    introduced by step 0 and are deliberately left out of it: replacing `nullable` is a
    schema-semantics change across ~101 sites, not hygiene.
-3. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
+2. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
    `standards/README.md` §Verify presents it as the command that "hashes the vocabulary + compares
    pinned seams across repos". There is no such file in this repository (`scripts/` contains only
    `validate.py`), and [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) has
@@ -103,7 +106,7 @@ before the contract is presented as ratifiable:
    never *detected*". It matters more from step 2 onward, which introduces five new pins (see
    [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)). Until the script exists,
    anyone relying on seam parity must verify it by hand.
-4. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
+3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
    genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
    (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
    but `rfcs/0001` carries an `SPDX-License-Identifier: Apache-2.0` header, RFCs 0003–0005 follow
