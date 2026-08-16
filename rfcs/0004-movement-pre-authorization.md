@@ -13,6 +13,12 @@ SPDX-License-Identifier: Apache-2.0
 - **Backwards compatibility:** Additive only, within `/v1`, plus **one enum widening that fixes a
   latent contract defect** — see §3, which is the only change here that alters an existing
   schema.
+- **Fixes a defect in the shipped contract.** `GET /v1/movements/list` has accepted
+  `status=approved` since **`bd0ee9e` (2026-07-10)**, but **`3b8e917` (2026-07-15)** narrowed the
+  *shared* `MovementAck.status` enum to `{lodged, blocked}`. Because `MovementAck` is the response
+  item of that list, **a conformant server cannot return an approved permit from the one endpoint
+  the integration guide instructs integrators to poll for approvals.** This is live in `2.0.0`
+  today, not a gap this RFC merely happens to close — see §1 and the regression case at §8.6.
 - **Builds on:** commit `3b8e917` ("clarify movement authority contract"), whose distinction this
   RFC completes rather than revisits. **Relates to:** RFC 0001 (qualified seals — how a permit
   verifies at a roadblock with no signal), RFC 0003 (the order a permit may be issued under).

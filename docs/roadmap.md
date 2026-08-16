@@ -19,7 +19,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) | fix | none (parser-level) | **landed** (`b57d7fa`); follow-up open |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate); 3 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client → 2.1.0 | next |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
@@ -48,18 +48,32 @@ undeclared tags `campaigns` and `trust-admin`, and duplicated `seamPin` / `notes
 It is step 0 because two of the four were **hiding other problems**, and you cannot sequence work
 against a signal you cannot read.
 
+### 0b. Gate hardening — landed
+
+`scripts/validate.py` could not detect either class of defect step 0 fixed. Proven blind, not
+assumed: a planted third `/keepers/resolve` and a planted undeclared tag both left it reporting
+green, and the planted duplicate **silently swallowed real contract surface** on the way through
+(unique `$ref`s fell 43 → 42 as the bogus stub overwrote the real definition) while the gate still
+printed OK. A gate that cannot see a defect which *deletes contract from the published document*
+is not a gate.
+
+Two checks added, both proven red-then-green before being trusted:
+
+1. **No duplicated mapping key** in `openapi.yaml`, `openapi-admin.yaml` or
+   `standards/registry.yaml`. It runs *first*, because every other check in the gate reads the
+   already-deduplicated document and therefore cannot know what YAML threw away. This is the only
+   check anywhere that covers `standards/registry.yaml` — `@redocly/cli` does not lint it at all,
+   which is why the `eudr.plot-geometry` downgrade justification could vanish unnoticed.
+2. **Every operation tag is declared** in its spec's top-level `tags:` list, both specs.
+   Redocly's recommended ruleset does not enable `operation-tag-defined`, so this is the only
+   place it is checked.
+
 ### Follow-up still open
 
-Three things that step 0 exposed rather than fixed. None blocks step 1, and all three should land
-before the contract is presented as ratifiable:
+Three things that step 0 exposed and did **not** fix. None blocks step 1, and all three should be
+resolved before the contract is presented as ratifiable:
 
-1. **Neither gate detects the class of defect step 0 fixed.** `scripts/validate.py` does not
-   check for duplicate YAML mapping keys or undeclared tags; `@redocly/cli`'s recommended
-   ruleset does not enable `operation-tag-defined` and does not lint
-   `standards/registry.yaml` at all. Both were proven blind by breaking them on purpose. A fix
-   that no gate can hold does not stay fixed — teaching `validate.py` to reject a duplicate
-   mapping key and an undeclared tag is a few lines and keeps it fixed.
-2. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
+1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
    stopped reporting anything at all. With it removed, the run completes and surfaces 101 uses of
    the OpenAPI 3.0 `nullable` keyword in `openapi-admin.yaml` (invalid in 3.1, where the form is
@@ -67,14 +81,26 @@ before the contract is presented as ratifiable:
    descriptions in `openapi.yaml` where an unquoted `,` splits the mapping. These were **not**
    introduced by step 0 and are deliberately left out of it: replacing `nullable` is a
    schema-semantics change across ~101 sites, not hygiene.
-3. **`scripts/check-standards-parity.sh` does not exist.** `standards/README.md` §Verify names it
-   as the command that "hashes the vocabulary + compares pinned seams across repos", and it is
-   absent from this repo, with no parity step in
-   [`.github/workflows/validate.yml`](../.github/workflows/validate.yml). The cross-repo seam
-   obligation is therefore enforced **in prose only** here — which is precisely the failure
-   `standards/README.md` says the register exists to end ("pinned by hand with drift *declared* a
-   conformance failure but never *detected*"). This matters most at step 2, which adds three new
-   pins.
+2. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
+   `standards/README.md` §Verify presents it as the command that "hashes the vocabulary + compares
+   pinned seams across repos". There is no such file in this repository (`scripts/` contains only
+   `validate.py`), and [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) has
+   no parity step. **The cross-repo seam-pin obligation is therefore enforced in prose only here,
+   by nothing that runs.** That is precisely the failure `standards/README.md` says the register
+   was created to end — seams "pinned by hand with drift *declared* a conformance failure but
+   never *detected*". It matters more from step 2 onward, which introduces five new pins (see
+   [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)). Until the script exists,
+   anyone relying on seam parity must verify it by hand.
+3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
+   genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
+   (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
+   but `rfcs/0001` carries an `SPDX-License-Identifier: Apache-2.0` header, RFCs 0003–0005 follow
+   that precedent, and `rfcs/0002` carries **no header at all** — three states across five files.
+   `docs/spec-governance.md` §2 cuts toward Apache-2.0 ("CC-BY … is *not* designed for things that
+   are implemented as code"), and these RFCs do carry field-level schema sketches meant to be
+   implemented. `LICENSING.md`'s own fallback ("the most specific matching rule above it applies")
+   does not resolve it, because no rule matches `rfcs/`. The steward should state the rule and
+   make the five files consistent with it — a licensing question, not an editorial one.
 
 ---
 
