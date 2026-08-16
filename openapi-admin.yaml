@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS Admin / Control-Plane API
-  version: 1.4.0-draft
+  version: 1.5.0-draft
   summary: Sovereign control-plane API — zones, integrator accreditation & keys, audit.
   description: |
     The control-plane API used **only** by the LITS Admin Portal (DVS / operator staff).
@@ -30,6 +30,15 @@ security:
 tags:
   - name: zones-admin
     description: Declare and maintain veterinary / FMD zones (sovereign reg-data).
+  - name: orders-admin
+    description: |
+      Author and advance disease response orders — quarantine and standstill (`orders:write`;
+      `orders:read` for the reads). **This is the only plane on which an order exists as an act.**
+      Clients read the result at `GET /v1/quarantine-orders` and never mint one.
+  - name: trace-flags-admin
+    description: |
+      Apply and clear the flags that follow an animal (`herd:write`). Registry-applied only —
+      the client contract has no write path for these, deliberately.
   - name: integrators
     description: Accredit integrators and issue / rotate / revoke their API keys.
   - name: audit
@@ -479,6 +488,206 @@ paths:
               schema: { $ref: '#/components/schemas/Zone' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/quarantine-orders:
+    post:
+      tags: [orders-admin]
+      operationId: createQuarantineOrder
+      summary: Author a disease response order (draft)
+      description: |
+        Requires `orders:write`. Creates the order in `draft`; the lifecycle then advances via
+        transitions, mirroring `POST /admin/movements/{ref}/{action}` — the control plane already
+        has exactly one idiom for advancing a regulated object, and a second would be a new thing
+        for the Admin Portal to learn for no gain.
+
+        **An order is an act of the State.** There is no client-plane equivalent of this endpoint
+        and there is not meant to be.
+
+        **`422 sections_not_declared`** when `scope` is `section` and the holding has no accepted
+        biosecurity attestation declaring its sections. The registry refuses to issue an order it
+        cannot describe rather than issuing a vague one. That attestation surface does not exist
+        yet, so **`scope: section` is currently not issuable at all** — the limit is in the
+        contract rather than hidden in an implementation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuarantineOrderWrite' }
+      responses:
+        '201':
+          description: Order created in `draft`. It binds nobody until it is activated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuarantineOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: |
+            Validation failed. `code: sections_not_declared` when `scope: section` is used against
+            a holding whose sections the registry does not hold.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      tags: [orders-admin]
+      operationId: listQuarantineOrdersAdmin
+      summary: List orders (admin view, incl. drafts)
+      description: |
+        Requires `orders:read`. **Includes drafts**, which is what distinguishes this from the
+        client delta at `GET /v1/quarantine-orders`: a client never sees an order the authority
+        has not yet made.
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/OrderStatus' } }
+        - { name: country_code, in: query, required: false, schema: { type: string, default: ZW } }
+      responses:
+        '200':
+          description: Orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QuarantineOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/quarantine-orders/{order_id}:
+    get:
+      tags: [orders-admin]
+      operationId: getQuarantineOrderAdmin
+      summary: Fetch one order (incl. draft)
+      description: Requires `orders:read`.
+      parameters:
+        - { name: order_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuarantineOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/quarantine-orders/{order_id}/{action}:
+    post:
+      tags: [orders-admin]
+      operationId: transitionQuarantineOrder
+      summary: Advance a disease response order through its lifecycle
+      description: |
+        Requires `orders:write`. `action` is one of activate | suspend | resume | extend | lift |
+        revoke, validated against the order's current state. Every transition bumps
+        `order_version`, so the client delta carries it on the next sync.
+
+        **`activate` refuses an order carrying neither `declared_verbally_at` nor
+        `confirmed_in_writing_at`** (`409`). In the field the order is made by an officer telling
+        the keeper at the gate that nothing leaves, and the written instrument follows — so the
+        contract carries both timestamps and both are nullable. But an order that was never made,
+        in either form, cannot bind anyone. Whether a verbal declaration alone suffices is a
+        **statutory** question the contract does not decide: a territory whose law requires writing
+        first says so in its profile, and its registry refuses to activate without it.
+
+        **Activating an order of type `standstill` publishes its projected zone** into
+        `GET /v1/zones` (`zone_type: standstill`, `movement_restriction: blocked`) and records
+        `projected_zone_code` on the order. **`lift` and `revoke` retract that zone** by setting
+        its `effective_until` and bumping `zone_version` — an enforcement that cannot be switched
+        off as fast as it was switched on is not usable in an outbreak. The zone is a **view of the
+        order, never a second source of truth**, and is therefore not editable through
+        `/admin/zones`.
+      parameters:
+        - { name: order_id, in: path, required: true, schema: { type: string } }
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [activate, suspend, resume, extend, lift, revoke]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderTransition' }
+      responses:
+        '200':
+          description: Updated order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuarantineOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Not a legal transition from the order's current state — including `activate` on an
+            order with neither declaration timestamp set.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /admin/animals/{national_id}/trace-flags:
+    post:
+      tags: [trace-flags-admin]
+      operationId: applyTraceFlag
+      summary: Apply a trace flag to an animal (authority act)
+      description: |
+        Requires `herd:write`. Keyed on `national_id` — the sovereign identifier — because the flag
+        follows the animal's national identity, not a local record id.
+
+        **There is deliberately no client-plane counterpart.** A lifelong mark on a keeper's animal
+        is a determination with real economic consequence for a named person: it must carry an
+        officer, a legal basis and an audit entry, and it must be appealable. An integrator key
+        that could stamp it would be exercising authority it does not have, and the audit trail
+        would record a vendor key instead of a decision-maker. This also puts the operation
+        squarely inside the Cyber & Data Protection Act [Chapter 12:07] (POTRAZ), because a flag
+        on an animal is attributable to its keeper.
+      parameters:
+        - { name: national_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TraceFlagWrite' }
+      responses:
+        '201':
+          description: Flag applied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TraceFlag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/animals/{national_id}/trace-flags/{code}/clear:
+    post:
+      tags: [trace-flags-admin]
+      operationId: clearTraceFlag
+      summary: Clear a trace flag (authority act, audited)
+      description: |
+        Requires `herd:write`. Clearing is an authority act in its own right and carries a reason,
+        because the flag it removes was a determination against a named keeper's property — the
+        appeal path RFC 0003 §12 leaves open to the steering committee ends here, whatever it
+        decides the appeal itself looks like.
+
+        Clearing a flag whose `expires_at` is null — a **lifelong** flag — is the case that most
+        needs an audit entry, and it is not forbidden by the contract: whether it is lawful is a
+        profile question.
+      parameters:
+        - { name: national_id, in: path, required: true, schema: { type: string } }
+        - { name: code, in: path, required: true, schema: { $ref: '#/components/schemas/TraceFlagCode' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Revocation' }
+      responses:
+        '200':
+          description: Flag cleared.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TraceFlag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/integrators:
     post:
@@ -1353,7 +1562,14 @@ components:
       properties:
         zone_code: { type: string }
         zone_name: { type: string }
-        zone_type: { type: string, enum: [fmd_free, fmd_protection, fmd_infected, surveillance] }
+        zone_type:
+          type: string
+          enum: [fmd_free, fmd_protection, fmd_infected, surveillance, standstill]
+          description: |
+            `standstill` appears on this READ view because an active standstill order projects
+            into the zone feed. **It is absent from `ZoneWrite` on purpose**: the zone is a view of
+            the order, not a second source of truth, so it is authored by activating the order and
+            retracted by lifting it — never edited here.
         movement_restriction: { type: string, enum: [none, restricted, blocked] }
         boundary_wkt: { type: [string, 'null'] }
         zone_version: { type: integer, format: int64 }
@@ -1361,6 +1577,204 @@ components:
         effective_from: { type: string, format: date }
         effective_until: { type: [string, 'null'], format: date }
         source_reference: { type: string }
+
+    QuarantineOrderWrite:
+      type: object
+      description: |
+        Authoring input for a disease response order. The registry supplies `order_id`,
+        `order_version`, `status` and — for a standstill — `projected_zone_code`.
+
+        **`milestones` are supplied by the authority, computed under its own territory's profile.**
+        The contract deliberately carries no jurisdiction's arithmetic: how long a quarantine lasts
+        and when a slaughter window opens differ by territory and by disease and change by gazette.
+        Hard-coding one country's numbers here would make the open standard that country's, and a
+        national instance would have to fork it to obey its own law.
+      required: [order_type, scope, subject_id, effective_from]
+      properties:
+        order_type: { $ref: '#/components/schemas/OrderType' }
+        scope: { $ref: '#/components/schemas/OrderScope' }
+        subject_id:
+          type: string
+          description: 'holding_id | section_id | national_id | zone_code, per `scope`.'
+        section_id:
+          type: [string, 'null']
+          description: |
+            Required when `scope` is `section`. Rejected with `422 sections_not_declared` unless
+            the holding has an accepted biosecurity attestation declaring its sections.
+        disease: { type: string }
+        disease_case_id: { type: [string, 'null'] }
+        country_code: { type: string, default: ZW }
+        declared_verbally_at: { type: [string, 'null'], format: date-time }
+        confirmed_in_writing_at: { type: [string, 'null'], format: date-time }
+        effective_from: { type: string, format: date-time }
+        effective_until: { type: [string, 'null'], format: date-time }
+        milestones:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMilestone' }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/OrderCondition' }
+        issuing_authority: { type: string }
+        issuing_officer_ref:
+          type: string
+          description: Officer identifier, not a personal name.
+        legal_basis:
+          type: string
+          description: Citation for the power exercised. Profile-supplied; the contract does not supply it.
+        gazette_reference: { type: [string, 'null'] }
+      additionalProperties: false
+
+    OrderTransition:
+      type: object
+      description: |
+        Optional body on a lifecycle transition. `lift` and `revoke` carry a reason; `extend`
+        carries the new `effective_until` and any milestone dates the extension moves.
+      properties:
+        reason: { type: string }
+        effective_until: { type: [string, 'null'], format: date-time }
+        milestones:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMilestone' }
+      additionalProperties: false
+
+    QuarantineOrder:
+      type: object
+      description: |
+        The authored order, admin view. Identical in shape to the client's `QuarantineOrder`
+        (`openapi.yaml`) except that `status` may be `draft` here — the two specs are independent
+        by design and carry no cross-file `$ref`s.
+      required: [order_id, order_type, status, scope, subject_id, order_version, country_code, effective_from]
+      properties:
+        order_id: { type: string, examples: [ZW-QO-2026-000412] }
+        order_type: { $ref: '#/components/schemas/OrderType' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        scope: { $ref: '#/components/schemas/OrderScope' }
+        subject_id: { type: string }
+        section_id: { type: [string, 'null'] }
+        disease: { type: string }
+        disease_case_id: { type: [string, 'null'] }
+        order_version:
+          type: integer
+          format: int64
+          description: Monotonic. Every transition bumps it, which is what carries the change to clients.
+        country_code: { type: string, default: ZW }
+        declared_verbally_at: { type: [string, 'null'], format: date-time }
+        confirmed_in_writing_at: { type: [string, 'null'], format: date-time }
+        effective_from: { type: string, format: date-time }
+        effective_until: { type: [string, 'null'], format: date-time }
+        milestones:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMilestone' }
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/OrderCondition' }
+        issuing_authority: { type: string }
+        issuing_officer_ref: { type: string }
+        legal_basis: { type: string }
+        gazette_reference: { type: [string, 'null'] }
+        projected_zone_code:
+          type: [string, 'null']
+          description: |
+            Set by the registry when a standstill order is activated. Names the zone this order
+            projects into, so the two feeds can be joined rather than double-counted.
+        lifted_at: { type: [string, 'null'], format: date-time }
+        lift_reason: { type: [string, 'null'] }
+
+    OrderType:
+      type: string
+      enum: [quarantine, standstill]
+
+    OrderStatus:
+      type: string
+      description: |
+        Pinned vocabulary — seam pin `order-status`. **`draft` is present on this plane and absent
+        from the client's copy**: a client never sees an order the authority has not yet made.
+      enum: [draft, active, suspended, lifted, revoked, expired]
+
+    OrderScope:
+      type: string
+      description: '`section` is specified but not issuable until a holding can declare its sections.'
+      enum: [holding, section, animal, area]
+
+    OrderMilestone:
+      type: object
+      required: [code, date]
+      properties:
+        code: { $ref: '#/components/schemas/OrderMilestoneCode' }
+        date: { type: string, format: date }
+        note: { type: string, description: Human context. Never the machine meaning. }
+
+    OrderMilestoneCode:
+      type: string
+      description: |
+        Pinned vocabulary. Each profile states which of these its law requires and how it is
+        derived; the contract states only that the date exists and what it is called.
+      enum: [day_zero, slaughter_window_opens, slaughter_window_closes, review_due, lift_eligible]
+
+    OrderCondition:
+      type: object
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/OrderConditionCode' }
+        note: { type: string, description: Human context. Never the machine meaning. }
+
+    OrderConditionCode:
+      type: string
+      description: |
+        Pinned vocabulary — seam pin `permit-condition-codes`, shared with movement permits.
+        Clients fail CLOSED on a code they do not recognise, so **adding a value here changes
+        deployed client behaviour from permitting to blocking**: it needs a minor version bump on
+        the client spec and integrator notice, and it is safe only in that direction.
+
+        `cd_required` records the *condition* and, later, the fact that C&D was certified complete.
+        The checklist, the products, the operator and the photographs stay in the farm app — the
+        registry is the record of authority acts and regulated facts, not a farm-management
+        database.
+      enum:
+        - no_movement_on_off
+        - movement_by_permit_only
+        - cd_required
+        - sampling_required
+        - section_isolation_granted
+
+    TraceFlagWrite:
+      type: object
+      required: [code]
+      properties:
+        code: { $ref: '#/components/schemas/TraceFlagCode' }
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            **Omit or send null for a LIFELONG flag** — it never expires and is not re-evaluated.
+            Null does not mean "not yet decided"; the client contract publishes it as lifelong.
+        order_id: { type: [string, 'null'], description: The order under which the flag is applied. }
+        disease: { type: [string, 'null'] }
+        reason: { type: string, description: Recorded on the audit entry. }
+      additionalProperties: false
+
+    TraceFlag:
+      type: object
+      required: [code, applied_at]
+      properties:
+        code: { $ref: '#/components/schemas/TraceFlagCode' }
+        applied_at: { type: string, format: date-time }
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Null means lifelong.
+        order_id: { type: [string, 'null'] }
+        disease: { type: [string, 'null'] }
+        applied_by:
+          type: string
+          description: The issuing authority. Never an integrator key.
+        cleared_at: { type: [string, 'null'], format: date-time }
+        cleared_reason: { type: [string, 'null'] }
+
+    TraceFlagCode:
+      type: string
+      description: Pinned vocabulary — seam pin `trace-flag-codes`.
+      enum: [sero_positive_lifelong, quarantine_history]
 
     IntegratorCreate:
       type: object

@@ -129,6 +129,45 @@ than asserted, and the nullable-`expires_at` case does the same for "null means 
 > - **The three new seam pins are NOT yet entered in the sibling registers, so they are not
 >   declared here either.** See "Not shipped" below.
 
+**What landed in `openapi-admin.yaml`** (`1.4.0-draft` → `1.5.0-draft`) — the plane on which an
+order actually exists as an act:
+
+- **New** `POST /admin/quarantine-orders` (draft), `GET /admin/quarantine-orders` (**incl.
+  drafts**), `GET /admin/quarantine-orders/{order_id}`, and
+  `POST /admin/quarantine-orders/{order_id}/{action}` where `action` is
+  `activate | suspend | resume | extend | lift | revoke`. The transition idiom deliberately
+  mirrors `POST /admin/movements/{ref}/{action}`: the control plane already has exactly one way to
+  advance a regulated object through its lifecycle, and a second would be a new thing for an Admin
+  Portal to learn for no gain. Scopes `orders:write` (author, transition) and `orders:read`.
+- **New** `POST /admin/animals/{national_id}/trace-flags` and
+  `POST /admin/animals/{national_id}/trace-flags/{code}/clear` (`herd:write`). Keyed on
+  `national_id` — the sovereign identifier — because the flag follows the animal's national
+  identity, not a local record id.
+- **New** `QuarantineOrderWrite`, `OrderTransition`, `QuarantineOrder`, `TraceFlagWrite`,
+  `TraceFlag`, and this plane's own copies of the six vocabularies. **No cross-file `$ref`s**, per
+  CONTRIBUTING's "Two specs" rule — the specs stay independent.
+- **Changed** `Zone.zone_type` on the admin **read** view — gains `standstill`. **`ZoneWrite` did
+  not**, and that asymmetry is the design: the projected zone is a *view* of the order, authored by
+  activating the order and retracted by lifting it, never edited through `/admin/zones`. A
+  `ZoneWrite` that accepted `standstill` would let an operator create the second source of truth
+  the projection exists to avoid.
+
+Two behaviours are stated in the contract rather than left to the implementation:
+**`activate` refuses `409` on an order carrying neither `declared_verbally_at` nor
+`confirmed_in_writing_at`** (an order that was never made, in either form, binds nobody — while
+the contract still carries both timestamps and decides nothing about which a territory's law
+requires); and **`POST /admin/quarantine-orders` refuses `422 sections_not_declared`** for
+`scope: section` against a holding whose sections the registry does not hold. Since no biosecurity
+attestation surface exists yet, `scope: section` is **specified and currently not issuable at
+all** — a limit the contract admits instead of hiding.
+
+**`@redocly/cli lint` is unchanged by this release: 104 errors and 5 warnings before and after,
+identical rule-for-rule.** Measured, not assumed — `a6a553c`'s two specs and the post-change two
+specs were both linted with `@redocly/cli@2.46.1` and the per-rule counts diffed with no
+difference. No finding lands on any new path or schema. Notably `no-unused-components` stays at
+**1** (the pre-existing `CertificateRevocation` orphan), which is independent evidence that all
+eleven new client schemas and thirteen new admin schemas are actually referenced.
+
 **Not shipped in this release, and owed:**
 
 - The seam pins `order-status`, `trace-flag-codes` and `permit-condition-codes` are **not** added
