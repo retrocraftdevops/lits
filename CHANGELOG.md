@@ -452,6 +452,31 @@ since been taught both — see *Changed* below.
     It catches silent drift (a reformat, an editor rewrite, a hand-merged conflict); a deliberate
     change is caught instead by the version-bump rule, which this gate ties to the register and
     the four-way script ties to the siblings.
+  - **Corrected 2026-08-16 — check 5 could be satisfied by a RADIO BUTTON.** Found while
+    verifying, before asserting it, that `[2.2.0]`'s three owed seam pins really would be
+    refused if declared one-sidedly. Planting `order-status` in a scratch copy of the register
+    and running the gate printed `order-status: named by furotrack` and **exited 0**. The match
+    was `name="order-status"` — a radio-button group in
+    `apps/web-dashboard/src/app/(dashboard)/orders/page.tsx`. A form control had satisfied a
+    four-repo standards obligation.
+    - **The cause was a necessary breadth, not carelessness.** Only Dzinza keeps its register as
+      a `registry.yaml`; FuroField's lives in `apps/app/lib/standards/*.ts` and the engine's in
+      `furotech_api/standards/*.py`, so the check cannot simply read one filename and had to
+      search broadly — and a bare substring search over a whole application will eventually hit
+      an unrelated string.
+    - **The earlier "proven able to fail" claim above was true and still insufficient.** It used
+      a pin name nothing happened to contain, so it proved the check *can* go red without proving
+      it goes red for a pin someone would really add. A tripwire has to be tested with the input
+      it will actually see.
+    - **Fixed:** a match now counts only in a **standards artifact** — a path component
+      containing `standards`, or a register file — and the output names the **file** that
+      declared the pin (`dzinza:platform/lits/standards.py`) rather than only the repo, so the
+      evidence is in the log instead of in the reader's trust. Proven both ways: the two real
+      pins still pass, and the planted `order-status` now exits 1 naming it.
+    - **What it nearly cost.** Had `[2.2.0]` added its three pins without checking, the gate
+      would have reported them agreed, and "pinned on both sides" would have been false with
+      every check green — the exact failure the pin obligation exists to prevent, arriving
+      through the mechanism meant to prevent it.
 - **`rfcs/` is licensed Apache-2.0, stated in `LICENSING.md` for the first time.** A steward's
   licensing decision, not an editorial one. The per-path map had **no rule matching `rfcs/`** and
   its own fallback ("the most specific matching rule above it applies") could not resolve it, so

@@ -43,7 +43,8 @@ failure for the case where you expect them (adding a seam pin locally).
   4. Every sibling checkout present carries a byte-identical vocabulary.
   5. Every `seamPin` this register declares is named by at least one sibling
      register that is present — "a pin that exists on one side only is not a
-     pin; it is a claim" (docs/roadmap.md).
+     pin; it is a claim" (docs/roadmap.md). Only a STANDARDS artifact counts;
+     see STANDARDS_PATH_HINT for the radio button that used to satisfy this.
 
 ## The honest limit of check 1
 
@@ -108,6 +109,40 @@ PRUNE_DIRS = {
 }
 SEARCHABLE_SUFFIXES = {".ts", ".tsx", ".py", ".yaml", ".yml", ".json", ".sh"}
 MAX_SEARCH_BYTES = 2 * 1024 * 1024
+
+# A seam pin only counts when a sibling names it in a STANDARDS artifact.
+#
+# The search below cannot simply read each sibling's `standards/registry.yaml`,
+# because only Dzinza keeps its register in that shape: FuroField's lives in
+# `apps/app/lib/standards/*.ts` and the engine's in
+# `apps/api-core/furotech_api/standards/*.py`. So the search stays broad by
+# necessity — and a broad substring search over a whole application is how an
+# incidental string satisfies a conformance obligation.
+#
+# That is not hypothetical. Probing this gate with the (then unlanded) pin
+# `order-status` returned "named by furotrack" and exited 0. The match was
+# `name="order-status"` — a RADIO-BUTTON GROUP in
+# apps/web-dashboard/src/app/(dashboard)/orders/page.tsx. A form control had
+# satisfied a four-repo standards obligation, and the gate said PASS.
+#
+# A pin is a standards artifact, so it counts when it is named in one: a path
+# component containing "standards", or a register file. Verified to keep every
+# genuine match for both existing pins (Dzinza's registry.yaml and standards.py,
+# FuroField's lib/standards/*.ts, the engine's standards/*.py) while rejecting
+# the dashboard page.
+STANDARDS_PATH_HINT = "standards"
+REGISTER_FILENAMES = {"registry.yaml", "registry.yml", "registry.json"}
+
+
+def _is_standards_artifact(path: Path, repo_root: Path) -> bool:
+    """True when `path` is somewhere a seam pin can be DECLARED, not merely typed."""
+    try:
+        parts = [p.lower() for p in path.relative_to(repo_root).parts]
+    except ValueError:  # pragma: no cover - path outside the tree we walked
+        return False
+    if parts and parts[-1] in REGISTER_FILENAMES:
+        return True
+    return any(STANDARDS_PATH_HINT in part for part in parts)
 
 
 class Report:
@@ -322,8 +357,13 @@ def check_sibling_vocabularies(
     return compared, not_compared
 
 
-def _names_pin(repo_root: Path, pins: list[str]) -> set[str]:
-    """Which of `pins` this checkout names in code or in a register.
+def _names_pin(repo_root: Path, pins: list[str]) -> dict[str, str]:
+    """Which of `pins` this checkout DECLARES, and in which file.
+
+    Returns pin -> the repo-relative path that named it, so the evidence is in
+    the log. "named by furotrack" is not checkable by a reviewer;
+    "furotrack: standards/registry.yaml" is, and the difference is what caught
+    the radio button described at STANDARDS_PATH_HINT above.
 
     `standards/vocabulary.v1.json` is excluded on purpose: its `seamPin`
     description carries 'es-attestation-category' and 'eudr-geometry' as
@@ -332,7 +372,7 @@ def _names_pin(repo_root: Path, pins: list[str]) -> set[str]:
     measuring anything. Markdown is excluded for the same reason: the four
     repos share the text of standards/README.md, which names both pins.
     """
-    found: set[str] = set()
+    found: dict[str, str] = {}
     remaining = set(pins)
     for dirpath, dirnames, filenames in os.walk(repo_root):
         dirnames[:] = [d for d in dirnames if d not in PRUNE_DIRS]
@@ -342,6 +382,8 @@ def _names_pin(repo_root: Path, pins: list[str]) -> set[str]:
             path = Path(dirpath) / name
             if path.suffix not in SEARCHABLE_SUFFIXES:
                 continue
+            if not _is_standards_artifact(path, repo_root):
+                continue
             try:
                 if path.stat().st_size > MAX_SEARCH_BYTES:
                     continue
@@ -350,7 +392,7 @@ def _names_pin(repo_root: Path, pins: list[str]) -> set[str]:
                 continue
             for pin in list(remaining):
                 if pin in text:
-                    found.add(pin)
+                    found[pin] = str(path.relative_to(repo_root))
                     remaining.discard(pin)
             if not remaining:
                 return found
@@ -368,18 +410,21 @@ def check_seam_pins(report: Report, present: dict[str, Path], pins: list[str]) -
 
     by_pin: dict[str, list[str]] = {pin: [] for pin in pins}
     for label, path in sorted(present.items()):
-        for pin in _names_pin(path, pins):
-            by_pin[pin].append(label)
+        for pin, where in _names_pin(path, pins).items():
+            by_pin[pin].append(f"{label}:{where}")
 
     for pin, repos in sorted(by_pin.items()):
         if repos:
-            print(f"   OK  {pin}: named by {', '.join(repos)}")
+            print(f"   OK  {pin}: declared in {', '.join(repos)}")
         else:
             report.fail(
-                f"seam pin {pin!r} is declared in standards/registry.yaml and named by NONE of "
+                f"seam pin {pin!r} is declared in standards/registry.yaml and declared by NONE of "
                 f"the sibling registers present ({', '.join(sorted(present))}).\n"
                 "       A pin that exists on one side only is not a pin; it is a claim\n"
-                "       (docs/roadmap.md, 'The cross-repo seam-pin obligation')."
+                "       (docs/roadmap.md, 'The cross-repo seam-pin obligation').\n"
+                "       Only a STANDARDS artifact counts — a path component containing\n"
+                "       'standards', or a register file. An incidental occurrence elsewhere\n"
+                "       in a sibling application is not a declaration."
             )
 
 
