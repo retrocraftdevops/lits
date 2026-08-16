@@ -36,6 +36,18 @@ A black-box suite that exercises a running registry over the contract:
 - **`cold_chain_ok: false` is the event that increments `CampaignProgress.cold_chain_exceptions`.**
   This is a cross-plane seam — a client-plane report driving a control-plane counter — so it is
   asserted end to end rather than on either side alone.
+- **`GET /v1/movements/list?status=approved` returns items whose `status` is `approved`.** Against
+  the `2.0.0`/`2.1.0` contract this was **unsatisfiable** — the endpoint accepted the filter while
+  its response items were `MovementAck`, whose enum was `[lodged, blocked]` — so a conformant
+  server could not answer the one poll integrators are told to run. Fixed at `2.1.1`; this is the
+  regression case (RFC 0004 §8.6). It is a real test rather than decoration precisely because it
+  could not have passed before the fix.
+- **…and its guard: a `POST /v1/movements` acknowledgement is still only ever `lodged` or
+  `blocked`** — likewise `POST /keeper/movements`. **The two cases must be run together.** The
+  cheapest way to make the case above pass is to widen the shared `MovementAck`, which would hand
+  back the very reading `3b8e917` was written to end: a client's own lodgement coming back
+  authorised. This case is what refuses that shortcut, so a suite carrying only the first case is
+  satisfiable by the wrong fix.
 
 This harness is being extracted from the reference implementation into a standalone,
 vendor-neutral runner. Until it lands, integrators self-test against the published contract and

@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: LITS — Livestock Identification & Traceability System
-  version: 2.1.0
+  version: 2.1.1
   summary: Vendor-neutral national livestock registry API (the source of truth).
   description: |
     LITS is the national registry of record for livestock **identity**, **movement**
@@ -329,11 +329,22 @@ paths:
         Integrators (e.g. FuroTrack) poll this endpoint to detect permits that have
         transitioned to `approved` in the registry since their last sync, then push
         the corresponding field data automatically rather than waiting for a manual trigger.
+
+        Items are `MovementPermitSummary`, which carries the **full lifecycle vocabulary**
+        (`MovementLifecycleStatus`). This is a **read view of the permit as the authority has
+        driven it** — it is not, and is not shaped like, an acknowledgement of a lodgement.
+        A `POST /movements` acknowledgement (`MovementAck`) can still only ever be `lodged` or
+        `blocked`, because a client lodges and only the authority approves.
+
+        Sample response: `examples/movement-list.response.json`.
       parameters:
         - name: status
           in: query
           required: false
-          schema: { type: string, enum: [lodged, approved, rejected, departed, completed, blocked] }
+          description: |
+            Filter by lifecycle status. Deliberately the same vocabulary the response carries:
+            a status the registry can return is a status a client can ask for.
+          schema: { $ref: '#/components/schemas/MovementLifecycleStatus' }
         - name: since
           in: query
           required: false
@@ -348,14 +359,7 @@ paths:
           description: Movement permit list.
           content:
             application/json:
-              schema:
-                type: object
-                required: [count, movements]
-                properties:
-                  count: { type: integer }
-                  movements:
-                    type: array
-                    items: { $ref: '#/components/schemas/MovementAck' }
+              schema: { $ref: '#/components/schemas/MovementList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /disease-cases:
@@ -1291,15 +1295,69 @@ components:
     MovementAck:
       type: object
       required: [permit_reference, status]
+      description: |
+        Acknowledgement that a **lodgement** was received — returned by `POST /movements` and by
+        `POST /keeper/movements`. It is not a permit view; see `MovementPermitSummary`.
       properties:
         permit_reference: { type: string, description: Registry movement-request reference; it is not evidence of approval or issuance. }
         id: { type: string }
         status:
           type: string
           enum: [lodged, blocked]
-          description: A client lodges a request; only the authority control plane can later approve it.
+          description: |
+            A client lodges a request; only the authority control plane can later approve it.
+
+            This enum stays at two values ON PURPOSE and must not be widened to the permit
+            lifecycle. A lodgement is never born `approved`, so a schema that permitted it here
+            would let a client read its own submission as an authorisation — the confusion
+            `3b8e917` was written to end. The full lifecycle lives in
+            `MovementLifecycleStatus`, on the read views that report what the authority did.
         crosses_zone_boundary: { type: boolean }
         recorded_at: { type: string, format: date-time }
+
+    MovementLifecycleStatus:
+      type: string
+      enum: [lodged, under_review, approved, rejected, blocked, departed, arrived, completed, cancelled, expired]
+      description: |
+        The permit lifecycle as driven by the authority control plane
+        (`POST /admin/movements/{ref}/{action}` — lodge | review | approve | reject | depart |
+        arrive | complete | cancel). Read-only for clients: no client transition moves a permit
+        through these states.
+
+        `lodged` still means only that the request was recorded. **Approval is `approved` and
+        nothing else.** The control plane's pre-lodgement `draft` state is deliberately absent —
+        a client never sees a permit before it is lodged.
+
+        One vocabulary, one place: the `/movements/list` filter and every permit read view
+        reference this schema rather than restating it, so they cannot drift apart.
+
+    MovementPermitSummary:
+      type: object
+      required: [permit_reference, status]
+      description: |
+        A permit as it appears in a **read** view (`GET /movements/list`): the same fields
+        `MovementAck` carries, with the full lifecycle vocabulary instead of the two values a
+        lodgement acknowledgement can take.
+
+        Separate from `MovementAck` deliberately. Widening the shared acknowledgement would have
+        fixed this endpoint by loosening two *write* acknowledgements
+        (`POST /movements`, `POST /keeper/movements`) that are correct as they stand.
+      properties:
+        permit_reference: { type: string, description: Registry movement-request reference. }
+        id: { type: string }
+        status: { $ref: '#/components/schemas/MovementLifecycleStatus' }
+        crosses_zone_boundary: { type: boolean }
+        recorded_at: { type: string, format: date-time }
+
+    MovementList:
+      type: object
+      required: [count, movements]
+      description: Response of `GET /movements/list`.
+      properties:
+        count: { type: integer }
+        movements:
+          type: array
+          items: { $ref: '#/components/schemas/MovementPermitSummary' }
 
     Vaccination:
       type: object

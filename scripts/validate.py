@@ -145,6 +145,7 @@ EXAMPLE_SCHEMAS = {
     "record-vaccination.json": "Vaccination",
     "issue-certificate.json": "CertificateRequest",
     "zone-delta.response.json": "ZoneDelta",
+    "movement-list.response.json": "MovementList",
 }
 
 # bool is a subclass of int in Python, so integer/number must exclude it explicitly.

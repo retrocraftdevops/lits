@@ -4,6 +4,104 @@ All notable changes to the **LITS API contract** are recorded here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The contract is versioned in the URL
 path (`/v1`); see [CONTRIBUTING.md](./CONTRIBUTING.md) for the change policy.
 
+## [2.1.1] — 2026-08-16
+
+### Fixed
+
+**`GET /v1/movements/list` could not return an approved permit — a defect live in `2.0.0` since
+2026-07-15.** Not a new capability: the endpoint has advertised this behaviour since `bd0ee9e`
+(2026-07-10) and been unable to deliver it since `3b8e917` (2026-07-15). Patch release, because
+nothing new is offered — a documented behaviour is made expressible.
+
+**The defect.** `/movements/list` accepts `status=approved`, and its own description tells
+integrators to poll it "to detect permits that have transitioned to `approved` in the registry
+since their last sync". Its `200` returned an array of **`MovementAck`**, whose `status` enum
+`3b8e917` had narrowed to `[lodged, blocked]`. **A conformant server could not express an approved
+permit in the one endpoint whose stated purpose is returning them.** The filter accepted the
+question and the schema forbade the answer.
+
+**Two remedies were weighed. The one that shipped is (b).**
+
+- **(a) Widen the shared `MovementAck.status`** to the full lifecycle. This is what
+  [RFC 0004](./rfcs/0004-movement-pre-authorization.md) §3 proposed. **Rejected**, for three
+  reasons:
+  - **`approved` is not meaningful on an acknowledgement of a lodgement.** `MovementAck` answers
+    "we received your submission". A lodgement is never born approved — that is precisely what
+    `3b8e917` ("clarify movement authority contract") landed to establish. Admitting `approved`
+    into the acknowledgement schema hands back, at the contract level, the reading that commit
+    was written to end: that a client's own submission can come back authorised.
+  - **`MovementAck` is shared by two WRITE paths, not one.** `POST /v1/movements` and
+    `POST /keeper/movements` both return it. Widening the shared schema to fix a *read* endpoint
+    would have loosened two write acknowledgements that were correct as they stood — the blast
+    radius lands on the busiest path in the contract, to fix a defect that is not on it.
+  - **It is a widening for the server and therefore a TIGHTENING for the client.** On a response
+    schema, "more values may be returned" is a new obligation on every reader. RFC 0004 §6 said as
+    much: "a client that exhaustively switched on `lodged | blocked` will now meet values it has
+    never seen." That is the definition of a change a deployed client can break on.
+- **(b) Give the read path its own schema, leave `MovementAck` alone.** Shipped. **No conformant
+  client can break on it:** every field a client already parses is present, in the same place,
+  with the same type and meaning; nothing is removed, renamed or made required; and the only new
+  values appear exactly where the contract already told clients to expect them.
+  - RFC 0004 §3's objection to (b) was that two nearly-identical enums will drift. **So the enum
+    was not duplicated.** `MovementLifecycleStatus` is a single named component, `$ref`ed by the
+    list item schema *and* by the `/movements/list?status=` filter — one vocabulary, one place,
+    fewer restatements than (a) would have left behind.
+  - **It is a step toward RFC 0004, not something 0004 must undo.** The ten values are RFC 0004
+    §3's own lifecycle enum, verbatim. When `MovementPermit` (the detail view) lands it `$ref`s
+    the same component; `MovementPermitSummary` stays the summary the list already returned. The
+    RFC now carries an erratum recording that its §3 preference is superseded, because an accepted
+    RFC that still recommends the rejected option is how a fix gets undone.
+
+**What changed in `openapi.yaml`:**
+
+- **New** `MovementLifecycleStatus` — `[lodged, under_review, approved, rejected, blocked,
+  departed, arrived, completed, cancelled, expired]`. The control plane's `draft` state is
+  deliberately absent: a client never sees a permit before it is lodged.
+- **New** `MovementPermitSummary` — the list item. Same five fields `MovementAck` carries
+  (`permit_reference`, `id`, `status`, `crosses_zone_boundary`, `recorded_at`), with the lifecycle
+  enum on `status`.
+- **New** `MovementList` — the `{count, movements}` body, named rather than inline so a published
+  example can be checked against it (see below).
+- **Changed** `/movements/list`: `200` now `$ref`s `MovementList`; the `status` filter now `$ref`s
+  `MovementLifecycleStatus` instead of restating six of its ten values. The filter change is a
+  **widening of accepted input** — the registry answers questions it previously rejected — which
+  no client can break on.
+- **Unchanged, on purpose:** `MovementAck`. Its `status` description now records *why* it stays at
+  two values and points at `MovementLifecycleStatus`, so the next reader meets the reasoning
+  instead of the temptation.
+
+**Covered by a check that was proven able to fail.** `examples/movement-list.response.json` is new
+and carries `approved` and `under_review`; `scripts/validate.py`'s example-conformance check
+validates it against `MovementList`, recursing through the array and the `$ref`. Both regressions
+were planted in a scratch copy — nothing in the repo was mutated — and both were caught: reverting
+`MovementLifecycleStatus` to `[lodged, blocked]`, and re-pointing `MovementList.movements.items` at
+`MovementAck`, each exited 1 naming `movement-list.response.json.movements[0].status`. Removing the
+example's `EXAMPLE_SCHEMAS` entry also failed, so it cannot be silently opted out.
+
+> **Stated limit, so it is not discovered later.** The example check binds an example to a **named
+> schema**, not to an **endpoint**. Reverting `/movements/list`'s `200` to an inline schema while
+> leaving `MovementList` defined but orphaned was planted too, and **passed** — exit 0. Closing
+> that needs an "every declared schema is referenced" check, which cannot land while `openapi.yaml`
+> carries a genuine orphan (`CertificateRevocation`, an operation described in three places and
+> defined in none); see [roadmap follow-up 4](./docs/roadmap.md#follow-up-still-open), opened by
+> this work.
+>
+> `@redocly/cli lint` run before and after this change reports the **identical** 3 errors and 4
+> warnings on `openapi.yaml` — all pre-existing, none in the new schemas. This release adds no
+> lint findings and fixes none.
+>
+> **Also not fixed here:** the list items carry `recorded_at`, not an updated-at, so `since` cannot
+> be advanced from the response body. A poller must use its own request timestamp and expect to
+> re-see recently-changed permits. That is a cursor design question the roadmap's event feed
+> answers properly; adding a second timestamp here would compete with it.
+
+Shipped with a conformance case and its guard (`conformance/README.md` §2, RFC 0004 §8.6): that
+`?status=approved` returns items whose status is `approved`, **paired with** the assertion that a
+`POST /v1/movements` acknowledgement is still only ever `lodged` or `blocked`. The pair matters —
+the cheapest way to pass the first case alone is remedy (a), and the second case is what refuses
+it. `docs/integration-guide.md` §5 gains the poll loop it never described, with the two shapes set
+out side by side and an instruction not to switch exhaustively on the read-view status.
+
 ## [2.1.0] — 2026-08-16
 
 ### Added

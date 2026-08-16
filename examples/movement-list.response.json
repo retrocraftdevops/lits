@@ -1,0 +1,26 @@
+{
+  "count": 3,
+  "movements": [
+    {
+      "permit_reference": "MVP-2026-00477",
+      "id": "mv_01JX4T7QK2R8N6ZC3F0Y9BSD5H",
+      "status": "approved",
+      "crosses_zone_boundary": true,
+      "recorded_at": "2026-06-04T06:41:12Z"
+    },
+    {
+      "permit_reference": "MVP-2026-00512",
+      "id": "mv_01JX5M2B7WQ4E1HT8A0P6VKD3N",
+      "status": "under_review",
+      "crosses_zone_boundary": true,
+      "recorded_at": "2026-06-05T09:03:47Z"
+    },
+    {
+      "permit_reference": "MVP-2026-00518",
+      "id": "mv_01JX5R9C4YT7G2ND6S1Z8XWQ0M",
+      "status": "lodged",
+      "crosses_zone_boundary": false,
+      "recorded_at": "2026-06-05T11:27:05Z"
+    }
+  ]
+}

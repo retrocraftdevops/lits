@@ -21,7 +21,8 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 |---|---|---|---|---|
 | 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
-| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | **accepted** 2026-08-16 |
+| 1b | [`/movements/list` status defect](#1b-movementslist-status-defect--landed) | fix | client 2.1.0 → **2.1.1** | **landed** |
+| 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.1 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | **accepted** 2026-08-16 |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | **accepted** 2026-08-16 |
 | 4 | [Biosecurity attestation](#4-biosecurity-attestation) | additive | client + admin | not drafted |
 | 5 | [Sampling](#5-sampling) | additive | client + admin | not drafted |
@@ -114,8 +115,9 @@ Three checks added across two rounds, each proven red-then-green before being tr
 
 ### Follow-up still open
 
-Three things were exposed here; **two remain open**. None blocks the next step, and all should be
-resolved before the contract is presented as ratifiable. (A fourth — examples never checked against
+Three things were exposed here; **two remain open**, and a fourth was added on 2026-08-16 by
+[step 1b](#1b-movementslist-status-defect--landed). None blocks the next step, and all should be
+resolved before the contract is presented as ratifiable. (Another — examples never checked against
 their schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
 Item 3 was closed on 2026-08-16 by a decision from Rodrick as steward: `rfcs/` is Apache-2.0.
 
@@ -255,6 +257,44 @@ reopened.
    green. Proven in both directions: with the glob added and `0002` still bare the gate exited 1
    naming it; with the header added it read 10 files and exited 0; and a planted headerless
    `rfcs/0006` was caught and cleared the same way.
+4. **`openapi.yaml` advertises `POST /v1/certificates/{id}/revoke` and does not define it — OPEN,
+   added 2026-08-16.** Found while measuring what the example gate can and cannot see (step 1b),
+   by asking a different question than usual: not "does every `$ref` resolve?" (it does — that is
+   check 3) but **"is every schema `$ref`ed by anything?"** The two are not the same question, and
+   only the second finds a schema nothing points at.
+
+   **`@redocly/cli` has been saying so all along — as a WARNING, on a run nothing executes.** Its
+   `no-unused-components` rule reports `CertificateRevocation` on every lint of `openapi.yaml`
+   (finding 7 of 7, unchanged before and after step 1b). It is not an error, so it does not fail
+   the lint; and per item 2 above, Actions is disabled here, so no lint runs unless a human runs
+   one. A warning inside a run that reports "3 errors" is a signal nobody is looking for. That is
+   why this sat from the first commit to now, and it is the argument for teaching
+   `scripts/validate.py` — the gate people *do* run by hand — the same check as an **error**.
+
+   - `CertificateRevocation` (`required: [reason]`) is defined and referenced **nowhere** — the
+     only such schema in either spec (`openapi-admin.yaml` has none).
+   - It is unreferenced because **the revoke path does not exist**, and `git log -S` says it
+     **never has**: no commit on any ref has ever carried `/certificates/{id}/revoke` in
+     `openapi.yaml`. The schema has been an orphan since the first published commit (`41244aa`).
+   - **Three places say otherwise.** The `certificates` tag description says "Issue, fetch and
+     **revoke**"; `POST /certificates`'s own description says the authority "signs it … **and
+     revokes it**"; and [the changelog](../CHANGELOG.md) `[Unreleased]` lists
+     `POST /v1/certificates/{id}/revoke` among the client API's published surface. A client
+     building from the changelog's endpoint list would call a route the contract does not define.
+   - **The likely resolution is that the prose is wrong, not the spec** — which is why it is not
+     fixed here. `openapi-admin.yaml` **already defines** `POST /admin/certificates/{id}/revoke`
+     with its own `Revocation` schema, and the two-plane model is explicit that only the authority
+     revokes ("integrators never mint national certificates"). If revocation is control-plane
+     only, the fix is to correct three descriptions and delete a vestigial schema — **not** to add
+     a client route. That is a steward's call, and getting it backwards would put a sovereign
+     operation on the integrator plane.
+   - RFC 0004 §4 builds on this path ("revoked through the existing revocation path"), so the
+     answer is owed before step 3 lands, though it blocks nothing today.
+   - **Closing it enables a gate.** "Every declared schema is referenced by something" is a cheap
+     check that would have caught this, and would also close step 1b's stated limit (an example
+     bound to a named schema cannot see the schema being orphaned from its endpoint). It cannot be
+     added while a genuine orphan is in the tree without an exclusion list, and an exclusion list
+     on a one-item problem is how the problem becomes permanent.
 
 ---
 
@@ -300,6 +340,38 @@ still accepted at `2.1.0` (the guard that "additive" really was additive), and t
 `cold_chain_ok: false` is the event incrementing `cold_chain_exceptions` (a cross-plane seam,
 asserted end to end).
 
+### 1b. `/movements/list` status defect — landed
+
+**Landed** — client `2.1.0` → `2.1.1`. RFC 0004 §3's defect, **split out and shipped ahead of the
+RFC** because it was live in `2.0.0` and cost integrators a working poll loop. RFC 0004 itself
+offered the split ("the enum widening can be split out and landed on its own; it is the only part
+of RFC 0004 that touches an existing schema").
+
+The defect: `GET /v1/movements/list` accepted `status=approved` and documented itself as the
+endpoint integrators poll "to detect permits that have transitioned to `approved`", while its
+response items were `MovementAck`, whose enum `3b8e917` had narrowed to `[lodged, blocked]`. **A
+conformant server could not return an approved permit from the endpoint whose stated purpose is
+returning approved permits.**
+
+**Fixed by the option RFC 0004 §3 rejected**, and the RFC now carries an erratum saying so. The
+list got its own response schema; `MovementAck` was not touched. Two facts settled it:
+`MovementAck` is the acknowledgement of a **lodgement** — `approved` is not meaningful on it, and
+admitting it re-opens the confusion `3b8e917` closed — and it is returned by **two write paths**
+(`POST /v1/movements`, `POST /keeper/movements`), so widening it to fix one read endpoint would
+have loosened two write acknowledgements that were correct. §3's objection to a second schema was
+that two enums drift; the enum was therefore **not duplicated** but extracted to a single named
+component both sides `$ref`. See [CHANGELOG](../CHANGELOG.md) `[2.1.1]`.
+
+**It has a tripwire, and the tripwire was proven able to fire.** `examples/movement-list.response.json`
+carries `approved` and `under_review` and is checked by the example-conformance gate added in
+[0b](#0b-gate-hardening--landed). Regressing the enum to `[lodged, blocked]`, or re-pointing the
+list items at `MovementAck`, each made `scripts/validate.py` exit 1 naming
+`movements[0].status`. *Stated limit:* the check binds an example to a **named schema**, not to an
+endpoint — reverting the path's `200` to an inline schema while leaving `MovementList` defined but
+orphaned passes. Closing that needs an "every schema is referenced" check, which is a separate
+change because `openapi.yaml` already has one orphan (`CertificateRevocation`, see
+[follow-up 4](#follow-up-still-open)).
+
 ---
 
 ## 2. RFC 0003 — disease response orders
@@ -335,12 +407,15 @@ inside affected areas, and the error code `permit_required`. Invents **no** thir
 evidence of approval is a `movement_permit` Certificate the contract already signs, verifies and
 revokes.
 
-**Ordering:** after RFC 0003 (above). It also **fixes a live defect** — `/movements/list` has
-accepted `status=approved` since `bd0ee9e` (2026-07-10) while `3b8e917` (2026-07-15) narrowed the
-shared `MovementAck.status` to `[lodged, blocked]`, so a conformant server cannot return an
-approved permit from the endpoint integrators are told to poll for approvals. If that fix is
-wanted sooner than this RFC ratifies, the enum widening can be split out and landed on its own;
-it is the only part of RFC 0004 that touches an existing schema.
+**Ordering:** after RFC 0003 (above).
+
+**The live defect it carried is already fixed** — see [1b](#1b-movementslist-status-defect--landed).
+It was split out and landed at `2.1.1` on 2026-08-16, which was the whole point of noting it was
+separable. **It was fixed by the option RFC 0004 §3 argued against**, so read the §3 erratum
+before implementing: `MovementAck` stays narrow, the list has its own schema, and the lifecycle
+vocabulary is a single `$ref`ed component that `MovementPermit` should reuse. What remains of this
+RFC is now **purely additive** — one endpoint, one schema, three optional request fields, one
+error code — with nothing left in it that touches an existing schema.
 
 ---
 

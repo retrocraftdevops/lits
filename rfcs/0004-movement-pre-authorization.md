@@ -11,7 +11,9 @@ SPDX-License-Identifier: Apache-2.0
   decision rights and this is recorded as a **pre-designation steward decision** which the
   committee may revisit. Acceptance ratifies the design; the contract surface below is **not yet
   implemented** — see [../docs/roadmap.md](../docs/roadmap.md) for the sequence and
-  [../CHANGELOG.md](../CHANGELOG.md) for what has actually landed.
+  [../CHANGELOG.md](../CHANGELOG.md) for what has actually landed. **One exception:** the §3 enum
+  defect was split out and **landed at `2.1.1` on 2026-08-16**, by a different remedy than §3
+  proposed. Read the §3 erratum before implementing this RFC.
 - **Affects:** `openapi.yaml` (client) 2.1.0 → 2.2.0, `openapi-admin.yaml` 1.5.0-draft →
   1.6.0-draft. (If this lands before RFC 0003, read those as 2.0.0 → 2.1.0 and 1.4.0-draft →
   1.5.0-draft.)
@@ -22,8 +24,9 @@ SPDX-License-Identifier: Apache-2.0
   `status=approved` since **`bd0ee9e` (2026-07-10)**, but **`3b8e917` (2026-07-15)** narrowed the
   *shared* `MovementAck.status` enum to `{lodged, blocked}`. Because `MovementAck` is the response
   item of that list, **a conformant server cannot return an approved permit from the one endpoint
-  the integration guide instructs integrators to poll for approvals.** This is live in `2.0.0`
-  today, not a gap this RFC merely happens to close — see §1 and the regression case at §8.6.
+  the contract instructs integrators to poll for approvals.** It was live from `2.0.0` and
+  **fixed at `2.1.1` (2026-08-16)**, split out ahead of the rest of this RFC and by a different
+  remedy than §3 proposed — see the §3 erratum. §1 below describes the defect as it stood.
 - **Builds on:** commit `3b8e917` ("clarify movement authority contract"), whose distinction this
   RFC completes rather than revisits. **Relates to:** RFC 0001 (qualified seals — how a permit
   verifies at a roadblock with no signal), RFC 0003 (the order a permit may be issued under).
@@ -60,9 +63,18 @@ verifiable defect in the published contract rather than a matter of taste:
 `MovementAck` is shared between the `POST` acknowledgement and the list response. Narrowing it was
 right for the acknowledgement — a lodgement is never born approved — and the list endpoint was
 collateral. **The consequence is that a conformant server cannot express an approved permit in
-the very endpoint the integration guide tells integrators to poll in order to "detect permits
-that have transitioned to `approved`."** The documented integration loop is unsatisfiable against
-the documented schema.
+the very endpoint the contract tells integrators to poll in order to "detect permits that have
+transitioned to `approved`."** The documented integration loop is unsatisfiable against the
+documented schema.
+
+> **Fixed at `2.1.1`** (§3 erratum). The paragraphs above are kept in the past tense they were
+> written in, because they are the reasoning the fix was made from. Note one correction of record
+> while it is in view: the sentence "the integration guide tells integrators to poll" was
+> **wrong when written** — `docs/integration-guide.md` did not mention `/movements/list` at all.
+> The instruction was in `openapi.yaml`'s own description of the endpoint. The guide now carries
+> the loop (§5, "Reading back the outcome"), so the claim is true from `2.1.1` onward, but it was
+> not evidence for the defect at the time and should not have been offered as such. **The defect
+> was real on the contract's own text alone**, which is the only evidence it ever needed.
 
 So the gap this RFC closes is narrow and concrete: *a client can lodge, and cannot read back.*
 
@@ -159,13 +171,50 @@ it is why the animal list is `required` with `minItems: 1` rather than optional.
 the reference exists, which leaks the shape of other operators' trade to anyone willing to
 enumerate.
 
-**The enum fix.** `MovementAck.status` is widened to the same lifecycle enum so that
-`/v1/movements/list?status=approved` can return what it says it can (§1). This is the one change
-here that touches an existing schema. It is **additive for readers** — no value is removed or
-renamed, and a client that only ever handled `lodged | blocked` keeps working — but it makes
-previously-impossible responses possible, so it needs the minor bump and an integrator note. The
-alternative, giving the list its own response schema, is cleaner in the abstract and worse in
-practice: two nearly-identical schemas that will drift.
+**The enum fix.** ~~`MovementAck.status` is widened to the same lifecycle enum so that
+`/v1/movements/list?status=approved` can return what it says it can (§1). … The alternative,
+giving the list its own response schema, is cleaner in the abstract and worse in practice: two
+nearly-identical schemas that will drift.~~
+
+> ### Erratum — landed 2026-08-16 at `2.1.1`, by the *other* option
+>
+> **The defect this section describes is fixed and shipped. It was fixed by giving the list its
+> own response schema — the option struck through above — and this RFC's preference for widening
+> the shared `MovementAck` is superseded.** Split out and landed ahead of the rest of this RFC on
+> Rodrick's instruction, per the split this document itself offered ("the enum widening can be
+> split out and landed on its own"). Recorded here rather than quietly left stale, because an
+> accepted RFC that still recommends the rejected option is how the next implementer undoes the
+> fix.
+>
+> Three things decided it, none of which were fully in view when §3 was written:
+>
+> 1. **`MovementAck` is the acknowledgement of a lodgement, and `approved` is not meaningful on
+>    it.** Widening it would have re-admitted, at the schema level, the exact reading `3b8e917`
+>    was written to end: that a client's own submission could come back authorised.
+> 2. **`MovementAck` is shared by TWO write paths, not one.** `POST /v1/movements` and
+>    `POST /keeper/movements` both return it. Widening the shared schema to fix a *read* endpoint
+>    would have loosened two *write* acknowledgements that are correct as they stand — and per §6
+>    below it is the widening, not the new schema, that a client "that exhaustively switched on
+>    `lodged | blocked`" can meet unfamiliar values from. The new schema is the option **no
+>    conformant client can break on**: nothing an existing client already parses changes.
+> 3. **The drift objection was answerable.** §3 rejected a second schema because two
+>    nearly-identical enums will drift. So the enum was not duplicated: `MovementLifecycleStatus`
+>    is a **single named component**, `$ref`ed by the list item schema *and* by the
+>    `/movements/list?status=` filter. `MovementPermit` (this section) should `$ref` it too when
+>    it lands, at which point there is one lifecycle vocabulary in one place — fewer, not more,
+>    restatements than the widening would have produced.
+>
+> **What landed:** `MovementLifecycleStatus` (this section's ten values, verbatim),
+> `MovementPermitSummary` (the list item), `MovementList` (the list body); the
+> `/movements/list?status=` filter re-pointed at the shared enum; `MovementAck` **unchanged**,
+> with a description saying why it stays at two values. **What did not:** everything else in this
+> RFC. See [../CHANGELOG.md](../CHANGELOG.md) `[2.1.1]`.
+>
+> **What this leaves for §3 proper:** `MovementPermit` is still needed — it is the *detail* view
+> (animals, conditions, validity window, `permit_certificate_id`), and `MovementPermitSummary` is
+> deliberately only the summary the list already returned. Build `MovementPermit` as the detail
+> schema and `$ref` `MovementLifecycleStatus` for its `status`; nothing in this section has to be
+> undone.
 
 ## 4. Evidence of approval is a Certificate, not a status field
 
@@ -255,13 +304,14 @@ All additive within `/v1` (CONTRIBUTING.md "Change policy"); no `/vN` required.
 
 | Spec | From | To | What lands |
 |---|---|---|---|
-| `openapi.yaml` (client) | 2.1.0 | **2.2.0** | `GET /v1/movements/{permit_reference}`; `MovementPermit` schema; `Movement` gains `authorizing_permit_reference`, `cd_certificate_ref`, `under_order_id`; `MovementAck.status` enum widened (§3); error code `permit_required` |
+| `openapi.yaml` (client) | 2.1.1 | **2.2.0** | `GET /v1/movements/{permit_reference}`; `MovementPermit` schema (`status` → `$ref MovementLifecycleStatus`); `Movement` gains `authorizing_permit_reference`, `cd_certificate_ref`, `under_order_id`; error code `permit_required` |
 | `openapi-admin.yaml` | 1.5.0-draft | **1.6.0-draft** | permit issuance emits a `movement_permit` Certificate on `approve`; permit conditions authorable on the existing `/admin/movements/{ref}/{action}` surface |
 
-The `MovementAck.status` widening is the one item that is not purely additive in effect, and it is
-a **fix** — it makes the contract self-consistent for the first time since 2026-07-15. It should
-still be called out to integrators, because a client that exhaustively switched on `lodged |
-blocked` will now meet values it has never seen.
+**The `MovementAck` widening is no longer part of this RFC** — the defect it existed to fix landed
+at `2.1.1` by the other remedy (§3 erratum), which touched no existing schema at all. What is left
+here is therefore **purely additive**: one new endpoint, one new schema, three new optional request
+fields, one new error code. The integrator note that used to be owed for the widening is not owed,
+because no value a deployed client already handles has changed meaning.
 
 Cross-repo seam-pin obligation for this RFC: `permit-condition-codes` (shared with RFC 0003) must
 be pinned in FuroTrack's and Dzinza's standards registers in the same change window.
@@ -292,9 +342,13 @@ The registry records the **authority to move** and the **fact of the movement**.
    certificate's `verify_token` verifies at the public, unauthenticated `GET /v1/verify/{token}`.
 5. Revoking that certificate is reflected in the permit view — a revoked permit does not read as
    good.
-6. **The regression case for §1:** `GET /v1/movements/list?status=approved` returns items whose
-   `status` is `approved`. Against today's contract this is unsatisfiable; it must fail before the
-   enum widening and pass after, which is what makes it a real test rather than decoration.
+6. **The regression case for §1 — landed at `2.1.1`, ahead of this RFC.**
+   `GET /v1/movements/list?status=approved` returns items whose `status` is `approved`. Against
+   the `2.0.0`/`2.1.0` contract this was unsatisfiable. It is now in
+   [`../conformance/README.md`](../conformance/README.md) §2, paired with its guard — that a
+   `POST /v1/movements` acknowledgement is still only ever `lodged` or `blocked` — because the
+   cheapest wrong way to satisfy the first case is to widen `MovementAck`, and the second case is
+   what refuses it.
 7. `POST /v1/movements` from within an area whose order carries `movement_by_permit_only`, with no
    `authorizing_permit_reference`, returns `409` with `code: permit_required` — and specifically
    **not** `zone_blocked` (§5).

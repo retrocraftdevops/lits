@@ -31,13 +31,14 @@ like talking to NamLITS (Namibia), SLITS (Eswatini) or BAITS (Botswana). No new 
 
 ## 1. The operations & the adapter mapping
 
-Four operations cover the integration. The right column is the **FuroTrack reference adapter**
+These operations cover the integration. The right column is the **FuroTrack reference adapter**
 (`LITSAdapter`, ZLITS (Zimbabwe)0 in its registry list); your platform supplies the equivalent.
 
 | LITS endpoint | Purpose | FuroTrack adapter method |
 | --- | --- | --- |
 | `POST /v1/animals` | Register / identify an animal → `national_id` | `register_animal` |
 | `POST /v1/movements` | Lodge a movement permit / consignment → `permit_reference` | `record_movement` |
+| `GET /v1/movements/list?status=&since=` | Poll for permits the authority has acted on (§5) | movement auto-sync |
 | `POST /v1/vaccinations` | Record a vaccination / mandatory disease event → `id` | `record_vaccination` |
 | `GET /v1/zones?since_version=N` | Pull the veterinary / FMD zone delta | `fmd_zone_sync` consumer |
 | `POST /v1/certificates` | **Request** a registry certificate (request-only, §6) | `request_certificate` |
@@ -129,6 +130,36 @@ rules and may answer:
 
 Handle `409` distinctly from transport errors: a blocked movement is a correct registry
 decision, so do **not** feed it to the retry/circuit-breaker path (§3).
+
+### Reading back the outcome
+
+`201 lodged` is where your write ends and the authority's workflow begins. To learn what happened
+next, **poll `GET /v1/movements/list?status=approved&since=<last sync>`** and push your field data
+for the permits that come back. That is the auto-sync loop the endpoint exists for.
+
+Two things to build against, and they are different on purpose:
+
+| | Shape | `status` can be |
+| --- | --- | --- |
+| **Acknowledgement** of your lodgement (`POST /v1/movements`, `POST /keeper/movements`) | `MovementAck` | `lodged`, `blocked` — **only these two.** You lodge; the authority approves. Your own submission never comes back authorised. |
+| **Read view** of a permit (`GET /v1/movements/list`) | `MovementPermitSummary` | the full lifecycle `MovementLifecycleStatus`: `lodged`, `under_review`, `approved`, `rejected`, `blocked`, `departed`, `arrived`, `completed`, `cancelled`, `expired` |
+
+**Do not switch exhaustively on the read-view status.** Treat an unrecognised value as "not
+approved" and carry on — the lifecycle is the authority's, and per §2 a client ignores what it
+does not consume. Sample response:
+[`movement-list.response.json`](../examples/movement-list.response.json).
+
+> Fixed at contract `2.1.1`. Before it, the list's response items were `MovementAck`, so a
+> conformant registry **could not return an approved permit from this endpoint at all** — the
+> filter accepted `status=approved` and the schema forbade the answer. If you built against
+> `2.0.0` or `2.1.0` and concluded the poll did not work, it did not; nothing on your side was
+> wrong. No client change is required to adopt the fix: every field you already parse is
+> unchanged, in the same place, with the same type.
+>
+> **Cursor caveat, stated rather than left to be discovered.** The items carry `recorded_at` (when
+> the permit was lodged), not an "updated at" — so `since` cannot be advanced from the response
+> body. Use your own request timestamp, and expect to re-see recently-changed permits. The
+> monotonic-cursor fix for this is the event feed on the roadmap, not another timestamp here.
 
 ---
 
