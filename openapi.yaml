@@ -1653,7 +1653,13 @@ components:
     OrderStatus:
       type: string
       description: |
-        Pinned vocabulary — seam pin `order-status`. The full lifecycle is
+        Pinned vocabulary on this contract. **Proposed** seam pin `order-status` — *not yet pinned
+        across repos*: neither this repo's `standards/registry.yaml` nor any sibling register
+        declares it, so today it binds this contract alone. It becomes a pin when this register and
+        the FuroTrack and Dzinza registers declare it in one change window; until then do not rely
+        on a sibling carrying the identical list.
+
+        The full lifecycle is
         `draft | active | suspended | lifted | revoked | expired`; **`draft` is deliberately absent
         here**, exactly as it is absent from `MovementLifecycleStatus`, because a client never sees
         an order the authority has not yet made. Drafts are visible only on the control plane.
@@ -1705,7 +1711,11 @@ components:
     OrderConditionCode:
       type: string
       description: |
-        Pinned vocabulary — seam pin `permit-condition-codes`, shared with movement permits.
+        Pinned vocabulary on this contract, shared with movement permits. **Proposed** seam pin
+        `permit-condition-codes` — *not yet pinned across repos*: neither this repo's
+        `standards/registry.yaml` nor any sibling register declares it. It becomes a pin when this
+        register and the FuroTrack and Dzinza registers declare it in one change window; until then
+        the sharing is between the two vocabularies *in this file*, not across repositories.
 
         - `no_movement_on_off` — nothing enters, nothing leaves.
         - `movement_by_permit_only` — movement allowed only under an issued permit.
@@ -1767,7 +1777,11 @@ components:
 
     TraceFlagCode:
       type: string
-      description: Pinned vocabulary — seam pin `trace-flag-codes`.
+      description: |
+        Pinned vocabulary on this contract. **Proposed** seam pin `trace-flag-codes` — *not yet
+        pinned across repos*: neither this repo's `standards/registry.yaml` nor any sibling register
+        declares it, so it binds this contract alone. It becomes a pin when this register and the
+        FuroTrack and Dzinza registers declare it in one change window.
       enum: [sero_positive_lifelong, quarantine_history]
 
     CampaignList:
