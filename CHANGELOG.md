@@ -66,10 +66,27 @@ was already keeping.
   whose stated justification had silently vanished from the loaded document. Both notes are
   merged under the single surviving key; the `partial` status is unchanged.
 
-None of these were caught by either gate: `scripts/validate.py` does not detect duplicate YAML
-mapping keys or undeclared tags, and `@redocly/cli`'s recommended ruleset does not enable
-`operation-tag-defined` and does not lint `standards/registry.yaml` at all. Teaching the gate to
-reject a duplicate mapping key and an undeclared tag is the follow-up that keeps these fixed.
+None of these was caught by either gate at the time: `scripts/validate.py` did not detect
+duplicate YAML mapping keys or undeclared tags, and `@redocly/cli`'s recommended ruleset does not
+enable `operation-tag-defined` and does not lint `standards/registry.yaml` at all. The gate has
+since been taught both — see *Changed* below.
+
+### Changed
+
+- **`scripts/validate.py` now rejects duplicated YAML mapping keys and undeclared operation
+  tags.** The gate was blind to both classes, which is how the defects above shipped. Proven
+  blind rather than assumed: a planted duplicate path left the validator reporting `OK` *while
+  silently swallowing real contract surface* — unique `$ref`s fell 43 → 42 as the planted stub
+  overwrote the genuine definition. A gate that cannot see a defect which deletes contract from
+  the published document is not a gate.
+  - **Duplicate mapping keys** in `openapi.yaml`, `openapi-admin.yaml` and
+    `standards/registry.yaml`. Runs first, before anything is believed about the parse, because
+    every other check reads the already-deduplicated document. It is the only check anywhere
+    covering `standards/registry.yaml`, which `@redocly/cli` does not lint.
+  - **Undeclared tags** — every tag an operation references must appear in its spec's top-level
+    `tags:` list. Redocly's recommended ruleset does not enable `operation-tag-defined`.
+  - Both were proven to fail on a planted defect and to pass again on its removal before being
+    relied on. No contract file changes; this is gate-only.
 
 ---
 

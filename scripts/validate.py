@@ -10,11 +10,13 @@ PyYAML is required; if `openapi-spec-validator` is installed it also runs a full
 spec validation.
 
 Checks:
-  1. Every `openapi*.yaml` (client + admin) parses and is OpenAPI 3.1.
-  2. Every internal $ref resolves, per spec.
-  3. Every examples/*.json file parses.
-  4. The standards register conforms to the shared control vocabulary.
-  5. Every open, comment-capable artifact carries an SPDX licence header.
+  1. No YAML file carries a duplicated mapping key.
+  2. Every `openapi*.yaml` (client + admin) parses and is OpenAPI 3.1.
+  3. Every internal $ref resolves, per spec.
+  4. Every tag an operation references is declared in the top-level `tags:` list.
+  5. Every examples/*.json file parses.
+  6. The standards register conforms to the shared control vocabulary.
+  7. Every open, comment-capable artifact carries an SPDX licence header.
 """
 from __future__ import annotations
 
@@ -29,6 +31,108 @@ ROOT = Path(__file__).resolve().parent.parent
 def fail(msg: str) -> None:
     print(f"FAIL: {msg}")
     sys.exit(1)
+
+
+# Files whose duplicate keys would silently change the published contract.
+DUPLICATE_KEY_GLOBS = ("openapi*.yaml", "standards/registry.yaml")
+
+
+def check_duplicate_keys(yaml_mod) -> None:
+    """Reject a duplicated mapping key in any contract YAML.
+
+    YAML keeps the LAST occurrence of a duplicated key and discards the earlier
+    ones without a word, so every other check in this gate runs against a
+    document that is missing something the file plainly contains. That is not
+    hypothetical here: `openapi.yaml` defined /authorized-keepers and
+    /keepers/resolve twice, and `standards/registry.yaml` carried `notes` twice
+    on one control — silently dropping the record of that control's downgrade
+    from `implemented` to `partial`, while the "a status needs a reason" check
+    below passed on the surviving note.
+
+    Nothing else catches this class. The $ref, tag and register checks all read
+    the already-deduplicated document, and `@redocly/cli` does not lint the
+    standards register at all. A duplicate can therefore DELETE a path from the
+    published contract while this gate reports OK, which is exactly what it did.
+    """
+    problems: list[str] = []
+    scanned = 0
+
+    for pattern in DUPLICATE_KEY_GLOBS:
+        for path in sorted(ROOT.glob(pattern)):
+            scanned += 1
+            seen_here: list[str] = []
+
+            class StrictLoader(yaml_mod.SafeLoader):
+                pass
+
+            def construct_mapping(loader, node, deep=False, _found=seen_here):
+                first_seen: dict = {}
+                for key_node, _value_node in node.value:
+                    try:
+                        key = loader.construct_object(key_node, deep=True)
+                        hash(key)
+                    except Exception:  # unhashable or unconstructable — not our concern
+                        continue
+                    line = key_node.start_mark.line + 1
+                    if key in first_seen:
+                        _found.append(
+                            f"duplicate key {key!r} at line {line} "
+                            f"(first defined at line {first_seen[key]}; YAML keeps the last and "
+                            f"discards the rest)"
+                        )
+                    first_seen[key] = line
+                return yaml_mod.SafeLoader.construct_mapping(loader, node, deep)
+
+            StrictLoader.add_constructor(
+                yaml_mod.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+            )
+            yaml_mod.load(path.read_text(), StrictLoader)
+
+            problems.extend(f"{path.relative_to(ROOT)}: {p}" for p in seen_here)
+
+    if problems:
+        fail("duplicated mapping key(s):\n  " + "\n  ".join(problems))
+    print(f"OK duplicate keys: {scanned} YAML file(s) carry no duplicated mapping key")
+
+
+def check_tags_declared(yaml_mod) -> None:
+    """Every tag an operation references must be declared at the top level.
+
+    An undeclared tag still groups operations, so nothing breaks loudly — the
+    operations simply render in an untitled section with no description, which
+    is how `campaigns` and `trust-admin` both went unnoticed. Redocly's
+    recommended ruleset does not enable `operation-tag-defined`, so this is the
+    only place it is checked.
+    """
+    problems: list[str] = []
+    checked = 0
+
+    for path in sorted(ROOT.glob("openapi*.yaml")):
+        doc = yaml_mod.safe_load(path.read_text())
+        if not isinstance(doc, dict):
+            continue
+        declared = {
+            t.get("name") for t in (doc.get("tags") or []) if isinstance(t, dict)
+        }
+        reported: set[str] = set()
+        for route, operations in (doc.get("paths") or {}).items():
+            if not isinstance(operations, dict):
+                continue
+            for method, op in operations.items():
+                if not isinstance(op, dict):
+                    continue
+                for tag in op.get("tags") or []:
+                    checked += 1
+                    if tag not in declared and tag not in reported:
+                        reported.add(tag)
+                        problems.append(
+                            f"{path.name}: {method.upper()} {route} uses tag {tag!r}, "
+                            f"which is not declared in the top-level tags: list"
+                        )
+
+    if problems:
+        fail("undeclared tag(s):\n  " + "\n  ".join(problems))
+    print(f"OK tags: {checked} operation tag reference(s), all declared")
 
 
 def validate_spec(path: Path, yaml_mod) -> None:
@@ -253,11 +357,17 @@ def main() -> int:
     except ImportError:
         fail("PyYAML is required (pip install pyyaml)")
 
+    # First — every check below reads an already-deduplicated document, so a
+    # duplicate key must be caught before anything is believed about the parse.
+    check_duplicate_keys(yaml)
+
     specs = sorted(ROOT.glob("openapi*.yaml"))
     if not specs:
         fail("no openapi*.yaml specs found")
     for spec in specs:
         validate_spec(spec, yaml)
+
+    check_tags_declared(yaml)
 
     # Example JSON files must parse.
     examples = sorted(glob.glob(str(ROOT / "examples" / "*.json")))
