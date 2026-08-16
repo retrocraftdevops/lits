@@ -42,6 +42,26 @@ other repo's cross-repo check — which is the point.
 
 ## Verify
 
+**The script is not in this repository.** It lives in the FuroField repo and is written to be run
+from any of the four — it locates its siblings relative to the parent directory. Invoke it by path:
+
 ```bash
-scripts/check-standards-parity.sh    # hashes the vocabulary + compares pinned seams across repos
+~/projects/FuroField/scripts/check-standards-parity.sh   # hashes the vocabulary + compares pinned seams across repos
 ```
+
+This line previously read `scripts/check-standards-parity.sh`, as though the file were here.
+`scripts/` in this repo contains only `validate.py`, so the command could not run and the section
+promised a check nobody could perform. FuroTrack's copy of this README already cites the absolute
+path; this one now matches it.
+
+Last run 2026-08-16 from a clean tree: **PASS** — vocabulary hash
+`737b5e9f…44e572a4` identical across FuroField, furotrack, lits and dzinza; both pinned seams
+(`eudr-geometry`, `es-attestation-category`) present on both sides; declared version `1.0.0`
+everywhere. The check was proved capable of failing in the same session by mutating a **copy** of
+this repo's `standards/vocabulary.v1.json` and re-running against it: it named the drifted file,
+printed both hashes, and exited 1.
+
+**What is still true, and is a real gap:** this repository's own CI
+([`.github/workflows/validate.yml`](../.github/workflows/validate.yml)) has **no parity step**, so
+nothing here detects drift automatically — see [`docs/roadmap.md`](../docs/roadmap.md) §"Follow-up
+still open".

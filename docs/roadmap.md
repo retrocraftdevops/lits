@@ -96,16 +96,42 @@ schemas — was closed by the second round of [gate hardening](#0b-gate-hardenin
    descriptions in `openapi.yaml` where an unquoted `,` splits the mapping. These were **not**
    introduced by step 0 and are deliberately left out of it: replacing `nullable` is a
    schema-semantics change across ~101 sites, not hygiene.
-2. **`scripts/check-standards-parity.sh` DOES NOT EXIST — do not cite it as if it runs.**
-   `standards/README.md` §Verify presents it as the command that "hashes the vocabulary + compares
-   pinned seams across repos". There is no such file in this repository (`scripts/` contains only
-   `validate.py`), and [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) has
-   no parity step. **The cross-repo seam-pin obligation is therefore enforced in prose only here,
-   by nothing that runs.** That is precisely the failure `standards/README.md` says the register
-   was created to end — seams "pinned by hand with drift *declared* a conformance failure but
-   never *detected*". It matters more from step 2 onward, which introduces five new pins (see
-   [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)). Until the script exists,
-   anyone relying on seam parity must verify it by hand.
+2. **The parity script EXISTS — in FuroField. This entry was half wrong and the wrong half
+   mattered.** Corrected 2026-08-16.
+
+   What was right: there is no such file in **this** repository (`scripts/` contains only
+   `validate.py`), `standards/README.md` §Verify cited it as a repo-relative path as though there
+   were, and [`.github/workflows/validate.yml`](../.github/workflows/validate.yml) has no parity
+   step. The README is now fixed to cite the absolute path, as FuroTrack's copy already did.
+
+   What was wrong: **"the cross-repo seam-pin obligation is enforced by nothing that runs" is not
+   true.** `~/projects/FuroField/scripts/check-standards-parity.sh` is real, is wired into
+   FuroField's `ci.yml`, and **reads this repository directly** — its own header names the four
+   registers including `LITS  standards/registry.yaml`, and it is written to be run from any of the
+   four. Run from a clean tree on 2026-08-16 it reported **PASS**: one vocabulary hash
+   (`737b5e9f…44e572a4`) across FuroField, furotrack, lits and dzinza, both pinned seams present on
+   both sides, `1.0.0` declared everywhere.
+
+   **And the PASS was checked before it was believed.** A green check proves nothing until it is
+   known to be capable of going red, so a *copy* of this repo's `standards/vocabulary.v1.json` was
+   mutated and the script re-run against it: it named `lits/standards/vocabulary.v1.json`, printed
+   expected and found hashes, and exited 1. Nothing in this repository was modified to do it.
+
+   **The residual gap is narrower than this entry claimed, and still real:** detection lives in a
+   sibling repo's CI, not in ours, so a drift introduced here is caught only when *FuroField's*
+   pipeline runs. That is a single point of failure for a four-repo obligation, and it is worth
+   knowing that FuroField's CI has its own availability history. It matters more from step 2
+   onward, which introduces five new pins (see
+   [the seam-pin obligation](#the-cross-repo-seam-pin-obligation)).
+
+   > **UNRESOLVED — needs Rodrick.** *Should this repository get its own CI parity step?* The
+   > options are a thin wrapper invoking the FuroField script (needs both checkouts on the runner,
+   > which a single-repo CI checkout does not have), vendoring a copy (four copies to keep in step,
+   > the exact drift the script exists to detect), or accepting that detection is centralised in
+   > FuroField and saying so plainly here. This is a cross-repo ownership decision, not an
+   > editorial one, and it is deliberately not taken by an agent. **Meanwhile the obligation is
+   > enforced — just not from here** — so run the script by hand from any of the four repos when
+   > adding a pin.
 3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
    genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
    (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
@@ -116,6 +142,18 @@ schemas — was closed by the second round of [gate hardening](#0b-gate-hardenin
    implemented. `LICENSING.md`'s own fallback ("the most specific matching rule above it applies")
    does not resolve it, because no rule matches `rfcs/`. The steward should state the rule and
    make the five files consistent with it — a licensing question, not an editorial one.
+
+   Re-verified 2026-08-16, unchanged: `rfcs/0001`, `0003`, `0004` and `0005` each carry an
+   `SPDX-FileCopyrightText`/`SPDX-License-Identifier: Apache-2.0` header; `rfcs/0002` carries none;
+   `LICENSING.md` contains no rule matching `rfcs/`.
+
+   > **UNRESOLVED — needs Rodrick, as steward.** Two things, in order: *(1) which licence governs
+   > `rfcs/` — Apache-2.0, matching the four headers already there and `spec-governance.md` §2, or
+   > CC BY 4.0, matching how the per-path map classifies prose?* and *(2) once that is stated, add
+   > the matching row to `LICENSING.md` and give `rfcs/0002` the header the other four carry.* An
+   > agent must not pick this: the four existing headers are evidence of an intent, not a decision,
+   > and the wrong choice publishes contributed text under terms nobody agreed to. Step (2) is
+   > mechanical the moment (1) is answered.
 
 ---
 
@@ -320,8 +358,16 @@ same change; anything that invalidates an existing register is a major version w
 treatment. Editing it in one repo alone fails that repo's parity test and every other repo's
 cross-repo check, which is the design working, not a problem to route around.
 
-⚠️ **Caveat, per step 0's open follow-up:** in *this* repo that parity check has no runnable
-script — `scripts/check-standards-parity.sh` is named in `standards/README.md` but is absent, and
-CI has no parity step. Until it exists, the obligation above is enforced by discipline, and each
-of the five pins should be added to the sibling registers by hand and verified by hand in the same
-change window.
+⚠️ **Caveat, per step 0's open follow-up — corrected 2026-08-16.** The parity check **does** have a
+runnable script and it **does** read this repo: `~/projects/FuroField/scripts/check-standards-parity.sh`,
+written to run from any of the four repos. What this repo lacks is a **CI step** invoking it, so
+drift introduced here is detected only when FuroField's pipeline runs. So each of the five pins
+must still be added to the sibling registers in the same change window — but verifying it is now a
+command rather than an inspection:
+
+```bash
+~/projects/FuroField/scripts/check-standards-parity.sh    # exit 0 = the four agree; exit 1 names the drift
+```
+
+Run it after adding a pin, on both sides, and read the exit code. Whether this repo should own a CI
+step of its own is escalated in the follow-up above.
