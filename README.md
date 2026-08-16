@@ -28,8 +28,13 @@ abattoirs, auctions and veterinary offices connect to it as **clients**.
 | `examples/` | sample request / response payloads |
 | `scripts/validate.py` | the contract self-test (the CI quality gate) |
 | `conformance/` | how an integration proves conformance |
-| `docs/` | spec governance and the integration guide |
+| `docs/` | spec governance, the integration guide, and the [roadmap](./docs/roadmap.md) |
+| `rfcs/` | proposals for sovereign-impacting changes, decided per [GOVERNANCE.md](./GOVERNANCE.md) §4 |
+| `standards/` | the standards register and the control vocabulary shared across repos |
 | `profiles/<cc>/` | per-country **open** profile: official acronym, ID numbering, zones, legal basis |
+
+What has already changed is in [CHANGELOG.md](./CHANGELOG.md); what is planned, and in what
+order, is in [docs/roadmap.md](./docs/roadmap.md).
 
 The runnable **reference implementation, portals and operations** are held privately by the
 operator — they are *not* in this repository. Only the contract and conformance suite are open.
