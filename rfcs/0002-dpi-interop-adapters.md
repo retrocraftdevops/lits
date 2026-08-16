@@ -1,3 +1,7 @@
+<!--
+SPDX-FileCopyrightText: 2026 The LITS steward
+SPDX-License-Identifier: Apache-2.0
+-->
 # RFC 0002 — DPI interoperability adapters (the generic-REST contract)
 
 - **Status:** Accepted (reference implementation)

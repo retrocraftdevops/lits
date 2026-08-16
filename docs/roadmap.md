@@ -19,7 +19,7 @@ What is planned for the LITS contract, in the order it is planned, and why that 
 
 | # | Step | Class | Spec impact | State |
 |---|---|---|---|---|
-| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 2 follow-ups open |
+| 0 | [Contract hygiene](#0-contract-hygiene) + [gate hardening](#0b-gate-hardening--landed) | fix | none (parser-level) | **landed** (`b57d7fa` + gate ×3); 1 follow-up open |
 | 1 | [Vaccination enrichment](#1-vaccination-enrichment) | additive | client 2.0.0 → **2.1.0** | **landed** |
 | 2 | [RFC 0003 — disease response orders](#2-rfc-0003--disease-response-orders) | RFC | client 2.1.0 → 2.2.0, admin 1.4.0-draft → 1.5.0-draft | draft |
 | 3 | [RFC 0004 — movement pre-authorization](#3-rfc-0004--movement-pre-authorization) | RFC | client 2.2.0 → 2.3.0, admin 1.5.0-draft → 1.6.0-draft | draft |
@@ -87,9 +87,9 @@ Three checks added across two rounds, each proven red-then-green before being tr
 Three things were exposed here; **one remains open**. None blocks the next step, and all should be
 resolved before the contract is presented as ratifiable. (A fourth — examples never checked against
 their schemas — was closed by the second round of [gate hardening](#0b-gate-hardening--landed).)
-Item 2 was closed on 2026-08-16 by Rodrick's decision that this repo owns a parity step; the entry
-is kept rather than deleted, because the reasoning behind rejecting a wrapper and rejecting a
-vendored copy is what stops the question being reopened.
+Items 2 and 3 were both closed on 2026-08-16 by decisions from Rodrick as steward — this repo owns
+a parity step, and `rfcs/` is Apache-2.0. Both entries are kept rather than deleted, because the
+reasoning is what stops the questions being reopened. Only item 1 remains.
 
 1. **104 pre-existing lint errors are now visible.** The duplicate path key made `@redocly/cli`
    abort with `duplicated mapping key` before validating *either* spec, so the CI lint step had
@@ -157,8 +157,8 @@ vendored copy is what stops the question being reopened.
    *deliberate* change is caught by the version-bump rule instead: bumping `vocabularyVersion` is
    tied to the register by this gate and to the siblings by the four-way script, so it cannot land
    in one repo alone and pass anywhere.
-3. **`rfcs/` is missing from `LICENSING.md`'s per-path map, and the correct licence is
-   genuinely ambiguous** — so it is recorded here rather than guessed. The map's prose row
+3. **`rfcs/` was missing from `LICENSING.md`'s per-path map — CLOSED, see below.** The ambiguity
+   as it stood: the map's prose row
    (`README.md`, `docs/`, `profiles/`, …) would sweep RFCs in as **CC BY 4.0** by content class;
    but `rfcs/0001` carries an `SPDX-License-Identifier: Apache-2.0` header, RFCs 0003–0005 follow
    that precedent, and `rfcs/0002` carries **no header at all** — three states across five files.
@@ -168,17 +168,30 @@ vendored copy is what stops the question being reopened.
    does not resolve it, because no rule matches `rfcs/`. The steward should state the rule and
    make the five files consistent with it — a licensing question, not an editorial one.
 
-   Re-verified 2026-08-16, unchanged: `rfcs/0001`, `0003`, `0004` and `0005` each carry an
-   `SPDX-FileCopyrightText`/`SPDX-License-Identifier: Apache-2.0` header; `rfcs/0002` carries none;
-   `LICENSING.md` contains no rule matching `rfcs/`.
+   Re-verified 2026-08-16, unchanged at the time: `rfcs/0001`, `0003`, `0004` and `0005` each
+   carried an `SPDX-FileCopyrightText`/`SPDX-License-Identifier: Apache-2.0` header; `rfcs/0002`
+   carried none; `LICENSING.md` contained no rule matching `rfcs/`.
 
-   > **UNRESOLVED — needs Rodrick, as steward.** Two things, in order: *(1) which licence governs
-   > `rfcs/` — Apache-2.0, matching the four headers already there and `spec-governance.md` §2, or
-   > CC BY 4.0, matching how the per-path map classifies prose?* and *(2) once that is stated, add
-   > the matching row to `LICENSING.md` and give `rfcs/0002` the header the other four carry.* An
-   > agent must not pick this: the four existing headers are evidence of an intent, not a decision,
-   > and the wrong choice publishes contributed text under terms nobody agreed to. Step (2) is
-   > mechanical the moment (1) is answered.
+   **CLOSED 2026-08-16. Rodrick, as steward, decided `rfcs/` is Apache-2.0.** The rule and its
+   reasoning are now recorded in [`../LICENSING.md`](../LICENSING.md) §"Why RFCs are Apache-2.0
+   (and not CC BY)" — in the licensing map rather than only here, so the next person meets it where
+   they look up a path.
+
+   **The decisive reason is the patent grant.** This repo ships a patent non-assertion covenant
+   ([`../PATENTS`](../PATENTS)) so implementers can build without fear of an ambush, and **CC BY
+   4.0 grants no patent rights** — its § 2(b)(2) reads *"Patent and trademark rights are not
+   licensed under this Public License."* These RFCs carry normative schema that implementers build
+   against, so under CC BY the implementable part would travel without the very protection the
+   repo exists to provide. `docs/spec-governance.md` §2 already pointed the same way, and four of
+   the five files had converged on Apache-2.0 by hand.
+
+   Two things followed mechanically: `rfcs/0002` got the header the other four carry, and
+   `scripts/validate.py`'s SPDX check — which globbed only `openapi*.yaml`, `scripts/*.py`,
+   `conformance/*.py` and `standards/registry.yaml`, five files, **none of them under `rfcs/`** —
+   now globs `rfcs/*.md` too. That blindness is why `rfcs/0002` could ship headerless with the gate
+   green. Proven in both directions: with the glob added and `0002` still bare the gate exited 1
+   naming it; with the header added it read 10 files and exited 0; and a planted headerless
+   `rfcs/0006` was caught and cleared the same way.
 
 ---
 

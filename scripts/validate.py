@@ -314,6 +314,12 @@ SPDX_REQUIRED_GLOBS = (
     "scripts/*.py",
     "conformance/*.py",
     "standards/registry.yaml",
+    # RFCs are Apache-2.0 per LICENSING.md, because they carry normative schema
+    # that implementers build against and must therefore travel with the patent
+    # grant. This glob was absent, so `rfcs/0002` shipped with no header at all
+    # while the gate reported OK — four of the five files had converged on
+    # Apache-2.0 by hand and nothing checked the fifth.
+    "rfcs/*.md",
 )
 
 

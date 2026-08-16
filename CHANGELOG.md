@@ -180,6 +180,29 @@ since been taught both — see *Changed* below.
     It catches silent drift (a reformat, an editor rewrite, a hand-merged conflict); a deliberate
     change is caught instead by the version-bump rule, which this gate ties to the register and
     the four-way script ties to the siblings.
+- **`rfcs/` is licensed Apache-2.0, stated in `LICENSING.md` for the first time.** A steward's
+  licensing decision, not an editorial one. The per-path map had **no rule matching `rfcs/`** and
+  its own fallback ("the most specific matching rule above it applies") could not resolve it, so
+  the five files sat in three states: `rfcs/0001`, `0003`, `0004` and `0005` carrying an
+  Apache-2.0 SPDX header written by hand, and `rfcs/0002` carrying none.
+  - **The decisive reason is the patent grant**, and it is recorded in `LICENSING.md` §"Why RFCs
+    are Apache-2.0 (and not CC BY)" so it is not relitigated. This repo ships a patent
+    non-assertion covenant (`PATENTS`) precisely so implementers can build without fear of an
+    ambush; **CC BY 4.0 grants no patent rights** — § 2(b)(2): *"Patent and trademark rights are
+    not licensed under this Public License."* These RFCs carry normative schema that implementers
+    build against, so under CC BY the implementable part would travel without the protection the
+    repo exists to provide. `docs/spec-governance.md` §2 already said CC-BY "is *not* designed for
+    things that are implemented as code."
+  - Narrative documentation is unchanged and stays CC BY 4.0. The line is **implementability**,
+    not file format: `docs/roadmap.md` describes what may be built, an RFC specifies it.
+  - **`rfcs/0002` now carries the header the other four carry.**
+  - **`scripts/validate.py`'s SPDX check now covers `rfcs/*.md`.** It globbed only
+    `openapi*.yaml`, `scripts/*.py`, `conformance/*.py` and `standards/registry.yaml` — five
+    files, **none under `rfcs/`** — which is exactly why `rfcs/0002` shipped headerless with the
+    gate reporting OK. Proven in both directions on the real defect: with the glob added and
+    `0002` still bare the gate exited 1 naming `rfcs/0002-dpi-interop-adapters.md`; with the
+    header added it read 10 files and exited 0. A planted headerless `rfcs/0006` was caught and
+    cleared the same way, so a *future* RFC cannot repeat it.
 
 ---
 
